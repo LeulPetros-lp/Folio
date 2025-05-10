@@ -4,6 +4,17 @@ import { useTheme } from "@mui/material/styles";
 import { Grid, Stack, Typography, Chip } from "@mui/material";
 import DashboardCard from "@/app/(DashboardLayout)/components/shared/DashboardCard";
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import axios from 'axios'
+
+
+interface Book {
+  _id: string;
+  ImgUrl: string | null;
+  BookName: string;
+  Isbn: string;
+}
+
 
 const MonthlyEarnings = () => {
   // chart color
@@ -50,7 +61,24 @@ const MonthlyEarnings = () => {
       color: secondary,
       data: [25, 66, 20, 40, 12, 58, 20],
     },
-  ];
+  ]; 
+
+  const [shelf, setShelf] = useState<Book[]>()
+
+
+
+  useEffect(() => {
+    const getShelf = async() => {
+      try {
+          const response = await axios.get('http://localhost:5123/shelf-item')
+          setShelf(response.data.data)
+      } catch (e) {
+        console.log(e)
+      }
+    }
+
+    getShelf()
+  }, [])
 
   return (
     <DashboardCard title="Library Shelf">
@@ -58,7 +86,7 @@ const MonthlyEarnings = () => {
         {/* column 1: Text content */}
         <Grid item xs={7} sm={7}>
           <Typography variant="h3" fontWeight="700" mt="-20px">
-            57+
+           {shelf?.length}+
           </Typography>
           <Stack direction="row" spacing={1} my={1} alignItems="center">
             <Typography variant="subtitle2" fontWeight="600">

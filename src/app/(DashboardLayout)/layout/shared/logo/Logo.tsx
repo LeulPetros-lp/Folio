@@ -11,9 +11,46 @@ const LinkStyled = styled(Link)(() => ({
 
 const Logo = () => {
   return (
-    <LinkStyled href="/">
-      <Image src="/images/logos/dark-logo.svg" alt="logo" height={70} width={174} priority />
-    </LinkStyled>
+    <div
+    style={{
+      display: "flex",
+      alignItems: "center", // Aligns SVG and text vertically
+      margin: 10,
+    }}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="50" // Keeps the icon size the same
+      height="50"
+      viewBox="0 0 100 50"
+      style={{
+        marginRight: 4, // Reduced space between the icon and text
+      }}
+    >
+      <rect
+        x="20"
+        y="25"
+        width="60"
+        height="25"
+        fill="#6366F1"
+        transform="rotate(-30, 25, 17.5)"
+        rx="5"
+        ry="5"
+      />
+      <rect
+        x="40"
+        y="28"
+        width="60"
+        height="25"
+        fill="#38BDF8"
+        transform="rotate(-30, 45, 32.5)"
+        rx="5"
+        ry="5"
+      />
+    </svg>
+    <h1 style={{ margin: 0 }}>Folio</h1>{" "}
+    {/* Remove default margin on h1 */}
+  </div>
   );
 };
 

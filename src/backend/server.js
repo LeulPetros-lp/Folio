@@ -215,6 +215,41 @@ app.delete('/shelf-item/:id', async (req, res) => {
   }
 });
 
+// Extend 
+app.put('/extend-return-date/:studentId', async (req, res) => {
+  const { studentId } = req.params;
+  const { newReturnDate } = req.body;
+
+  if (!newReturnDate) {
+    return res.status(400).json({ message: 'newReturnDate is required' });
+  }
+
+  try {
+    // Find the student by ID
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Validate or parse newReturnDate if necessary (e.g., ensure it's a valid date)
+    // For simplicity, we're assuming it's a string in 'YYYY-MM-DD' format
+    student.returnDate = newReturnDate;
+    // If your 'isGood' status depends on the return date, you might need to update it here too.
+    // For example, if extending makes an overdue book no longer overdue.
+    // student.isGood = new Date(newReturnDate) >= new Date(); // Example logic
+
+    await student.save();
+
+    res.status(200).json({ message: 'Book return date extended successfully', student });
+  } catch (err) {
+    console.error('Error extending return date:', err);
+    // More specific error handling (e.g., validation error) can be added
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ message: 'Validation error', errors: err.errors });
+    }
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 
 // Return a book
@@ -270,15 +305,57 @@ app.get('/get-members', async(req,res) => {
 
 // Revoke membership by deleting a member
 app.delete('/revoke-member/:id', async (req, res) => {
-  const memberId = req.params.id;
+  const memberId = req.params.id; // Correctly uses req.params.id
+
+  console.log(`BACKEND: Received DELETE request for /revoke-member/${memberId}`);
+  console.log(`BACKEND: Member ID to process: ${memberId}`);
+
+  if (!memberId) {
+    console.log('BACKEND: No memberId provided in request params.');
+    return res.status(400).json({ error: 'Member ID is required.' });
+  }
+
   try {
-    const result = await Members.findByIdAndDelete(memberId);
-    if (!result) {
-      return res.status(404).json({ message: 'Member not found' });
+    // Step 1: Check the Student collection (or your borrow tracking collection)
+    const studentBorrowRecord = await Student.findById(memberId);
+    console.log(`BACKEND: Result of Student.findById('${memberId}'):`, JSON.stringify(studentBorrowRecord, null, 2));
+
+    // Step 2: Determine if the found student record (if any) indicates an active borrow
+    if (studentBorrowRecord && studentHasActiveBorrow(studentBorrowRecord)) {
+      // Student record found AND it indicates an active borrow, so block deletion from Members.
+      console.log(`BACKEND: Member '${memberId}' has an active borrow (based on studentHasActiveBorrow logic). Revocation blocked.`);
+      // Return 200 OK with an 'err' field to indicate non-deletion to the client
+      return res.status(200).json({ err: "Student has an active book borrow and cannot be revoked." });
+    } else {
+      // Condition for deletion from Members:
+      // EITHER no studentBorrowRecord was found (student is not in the Student collection)
+      // OR a studentBorrowRecord was found, BUT studentHasActiveBorrow() returned false (no active borrow).
+      if (!studentBorrowRecord) {
+        console.log(`BACKEND: No borrow-related record found in 'Student' collection for memberId '${memberId}'. Proceeding to attempt deletion from 'Members' collection.`);
+      } else {
+        console.log(`BACKEND: Borrow-related record found in 'Student' collection for memberId '${memberId}', but it does NOT indicate an active borrow (studentHasActiveBorrow returned false). Proceeding to attempt deletion from 'Members' collection.`);
+      }
+
+      // Step 3: Proceed to delete from the main Members collection
+      const memberDeletionResult = await Members.findByIdAndDelete(memberId);
+
+      if (!memberDeletionResult) {
+        console.log(`BACKEND: Member NOT found in 'Members' collection with ID '${memberId}' for deletion.`);
+        return res.status(404).json({ message: 'Member not found in Members collection.' });
+      }
+
+      console.log(`BACKEND: Member '${memberId}' DELETED successfully from 'Members' collection.`);
+      return res.status(200).json({ message: 'Member revoked successfully.' });
     }
-    res.status(200).json({ message: 'Member revoked successfully' });
   } catch (err) {
-    console.error('Error revoking member:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error(`BACKEND: Error processing /revoke-member/${memberId}:`, err); // Log the full error object
+    // Check for specific Mongoose CastError (e.g., invalid ObjectId format)
+    if (err.name === 'CastError' && err.kind === 'ObjectId') {
+        console.log(`BACKEND: Invalid Member ID format: ${memberId}`);
+        return res.status(400).json({ error: `Invalid Member ID format: ${memberId}.` });
+    }
+    // Generic server error
+    return res.status(500).json({ error: 'Internal Server Error while attempting to revoke member.' });
   }
 });
+

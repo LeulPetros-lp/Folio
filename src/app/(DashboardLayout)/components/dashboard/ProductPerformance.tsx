@@ -8,9 +8,20 @@ import {
   TableRow,
   Chip,
   TextField,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  CircularProgress,
+  Snackbar, // Import Snackbar
+  Alert as MuiAlert, // Import Alert and alias it to avoid conflict if needed
 } from "@mui/material";
+import { AlertColor } from '@mui/material/Alert'; // Import AlertColor for typing
 import DashboardCard from "@/app/(DashboardLayout)//components/shared/DashboardCard";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"
 import axios from "axios";
 
 interface Student {
@@ -24,191 +35,333 @@ interface Student {
   returnDate: string;
 }
 
+const API_BASE_URL = "http://localhost:5123";
+
 const ProductPerformance: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Fetch data from the database
+  const router = useRouter()
+
+  // Modal States
+  const [openModal, setOpenModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [newReturnDate, setNewReturnDate] = useState<string>("");
+  const [modalLoading, setModalLoading] = useState<boolean>(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  // Snackbar States
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<AlertColor>("info");
+
+  const fetchStudents = () => {
+    setLoading(true);
+    setError(null);
     axios
-      .get("http://localhost:5123/list-students")
+      .get(`${API_BASE_URL}/list-students`)
       .then((response) => {
-        setStudents(response.data.data); // Update state with fetched students data
+        const formattedStudents = (Array.isArray(response.data.data) ? response.data.data : []).map(
+          (student: any) => ({
+            ...student,
+            id: student._id || student.id,
+          })
+        );
+        setStudents(formattedStudents);
+        setLoading(false);
       })
       .catch((err) => {
         console.error("Error fetching students:", err);
+        const errorMessage = err.response?.data?.message || "Failed to fetch students. Please ensure the backend server is running.";
+        setError(errorMessage);
+        // showSnackbar(errorMessage, "error"); // Optionally show snackbar for initial load error too
+        setStudents([]);
+        setLoading(false);
       });
-  }, []);
-
-  // Filtered students based on the search query
-  const filteredStudents = students
-  .filter((student) =>
-    student.name.toLowerCase().includes(query.toLowerCase())
-  )
-  .sort((a, b) => {
-    // Overdue students come first
-    if (!a.isGood && b.isGood) return -1;
-    if (a.isGood && !b.isGood) return 1;
-    return 0; // Maintain relative order for other students
-  });
-
-  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(event.target.value); // Update query on input change
   };
 
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const filteredStudents = students
+    .filter((student) =>
+      student.name.toLowerCase().includes(query.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!a.isGood && b.isGood) return -1;
+      if (a.isGood && !b.isGood) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(event.target.value);
+  };
+
+  const handleShowSnackbar = (message: string, severity: AlertColor) => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
+
+  const handleSnackbarClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbarOpen(false);
+  };
+
+  const handleOpenModal = (student: Student) => {
+    setSelectedStudent(student);
+    setNewReturnDate(student.returnDate ? new Date(student.returnDate).toISOString().split('T')[0] : "");
+    setModalError(null);
+    setOpenModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setOpenModal(false);
+    setSelectedStudent(null);
+    setNewReturnDate("");
+    setModalLoading(false);
+    setModalError(null);
+  };
+
+  // Return book
+  const handleReturnBook = async () => {
+    if (!selectedStudent) return;
+    setModalLoading(true);
+    setModalError(null);
+    try {
+      await axios.delete(`${API_BASE_URL}/return-book/${selectedStudent.id}`);
+      setStudents((prevStudents) =>
+        prevStudents.filter((s) => s.id !== selectedStudent.id)
+      );
+      handleShowSnackbar("Book returned successfully!", "success");
+      router.refresh()
+      handleCloseModal();
+
+    } catch (err: any) {
+      console.error("Error returning book:", err);
+      const errorMessage = err.response?.data?.message || "Failed to return book.";
+      setModalError(errorMessage); // Show error in modal
+      handleShowSnackbar(errorMessage, "error"); // Also show error in snackbar
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+
+
+  const handleExtendReturnDate = async () => {
+    if (!selectedStudent) return;
+    if (!newReturnDate) {
+      const dateEmptyMsg = "New return date cannot be empty.";
+      setModalError(dateEmptyMsg);
+      handleShowSnackbar(dateEmptyMsg, "warning"); // Use warning for validation
+      return;
+    }
+    setModalLoading(true);
+    setModalError(null);
+    try {
+      // const response = // If you need to use the response
+      await axios.put(
+        `${API_BASE_URL}/extend-return-date/${selectedStudent.id}`,
+        { newReturnDate }
+      );
+      setStudents((prevStudents) =>
+        prevStudents.map((s) =>
+          s.id === selectedStudent.id
+            ? { ...s, returnDate: newReturnDate, isGood: new Date(newReturnDate) >= new Date() }
+            : s
+        )
+      );
+      handleShowSnackbar("Return date extended successfully!", "success");
+      handleCloseModal();
+
+    } catch (err: any) {
+      console.error("Error extending return date:", err);
+      const errorMessage = err.response?.data?.message || "Failed to extend return date.";
+      setModalError(errorMessage); // Show error in modal
+      handleShowSnackbar(errorMessage, "error"); // Also show error in snackbar
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <DashboardCard title="Student Catalogue">
+        <Box sx={{ textAlign: 'center', p: 3 }}>
+          <CircularProgress />
+          <Typography sx={{ mt: 1 }}>Loading students...</Typography>
+        </Box>
+      </DashboardCard>
+    );
+  }
+
+  if (error) {
+    return (
+        <DashboardCard title="Student Catalogue">
+            <Box sx={{ textAlign: 'center', p: 3 }}>
+                <Typography color="error">{error}</Typography>
+                <Button onClick={fetchStudents} variant="contained" sx={{ mt: 2 }}>Try Again</Button>
+            </Box>
+        </DashboardCard>
+    );
+  }
+
   return (
-    <DashboardCard title="">
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        mb: 2,
-      }}
-    >
-      <Typography variant="h6" fontWeight={600}>
-        Student Catalogue 
-      </Typography>
-      <TextField
-        style={{ width: 300 }}
-        label="Search for Students"
-        variant="outlined"
-        value={query}
-        onChange={handleInputChange}
-        
-      />
-      </Box>
-      <Box sx={{ overflow: "auto", width: { xs: "280px", sm: "auto" } }}>
-        <Table
-          aria-label="student table"
-          sx={{
-            whiteSpace: "nowrap",
-            mt: 2,
-          }}
-        >
-          <TableHead>
-            <TableRow>
-              <TableCell>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  CId
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Name
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Grade/Section
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Status
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Book Name
-                </Typography>
-              </TableCell>
-              <TableCell align="left">
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Return Date
-                </Typography>
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {students.length > 0 ? (
-              students.slice(0,6).map((student, i) => (
-                <TableRow
-                  key={student.id}
-                  hover
-                  sx={{ cursor: "pointer" }}
-                  onClick={() => alert(`Selected Student: ${student.name}`)}
-                >
-                  <TableCell>
-                    <Typography
-                      sx={{
-                        fontSize: "15px",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {i + 1}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {student.name}
-                        </Typography>
-                        <Typography
-                          color="textSecondary"
-                          sx={{
-                            fontSize: "13px",
-                          }}
-                        >
-                          {student.post}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography
-                      color="textSecondary"
-                      variant="subtitle2"
-                      fontWeight={400}
-                    >
-                      {student.grade}
-                      {student.section}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      sx={{
-                        px: "4px",
-                        backgroundColor: student.isGood
-                          ? "rgb(93, 135, 255)"
-                          : "rgb(255, 93, 93)",
-                        color: "#fff",
-                      }}
-                      size="small"
-                      label={student.isGood ? "Borrowed" : "Overdue"}
-                    />
-                  </TableCell>
-                  <TableCell align="left">
-                    <Typography variant="h6">
-                      {student.book.length > 25
-                        ? `${student.book.slice(0, 9)}...`
-                        : student.book}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="left">
-                    <Typography variant="h6">
-                      {new Date(student.returnDate).toLocaleDateString()}
-                    </Typography>
-                  </TableCell>
+    <> {/* Wrap with Fragment or a top-level Box if Snackbar needs specific positioning relative to all content */}
+      <DashboardCard title="">
+        <>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+              px: 2,
+              pt: 0,
+            }}
+          >
+            <Typography variant="h6" fontWeight={600}>
+              Student Book Records
+            </Typography>
+            <TextField
+              style={{ width: 300 }}
+              label="Search by Student Name"
+              variant="outlined"
+              value={query}
+              onChange={handleInputChange}
+              size="small"
+            />
+          </Box>
+          <Box sx={{ overflow: "auto" }}>
+            <Table aria-label="student table" sx={{ whiteSpace: "nowrap", mt: 0 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell><Typography variant="subtitle2" fontWeight={600}>#</Typography></TableCell>
+                  <TableCell><Typography variant="subtitle2" fontWeight={600}>Name</Typography></TableCell>
+                  <TableCell><Typography variant="subtitle2" fontWeight={600}>Grade/Section</Typography></TableCell>
+                  <TableCell><Typography variant="subtitle2" fontWeight={600}>Status</Typography></TableCell>
+                  <TableCell><Typography variant="subtitle2" fontWeight={600}>Book Name</Typography></TableCell>
+                  <TableCell align="left"><Typography variant="subtitle2" fontWeight={600}>Return Date</Typography></TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography>No matching records found.</Typography>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </Box>
-    </DashboardCard>
+              </TableHead>
+              <TableBody>
+                {filteredStudents.length > 0 ? (
+                  filteredStudents.slice(0, 10).map((student, i) => (
+                    <TableRow
+                      key={student.id}
+                      hover
+                      sx={{ cursor: "pointer" }}
+                      onClick={() => handleOpenModal(student)}
+                    >
+                      <TableCell><Typography sx={{ fontSize: "15px", fontWeight: "500" }}>{i + 1}</Typography></TableCell>
+                      <TableCell>
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight={600}>{student.name}</Typography>
+                            <Typography color="textSecondary" sx={{ fontSize: "13px" }}>{student.post}</Typography>
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      <TableCell><Typography color="textSecondary" variant="subtitle2" fontWeight={400}>{student.grade}/{student.section}</Typography></TableCell>
+                      <TableCell>
+                        <Chip
+                          sx={{
+                            px: "4px",
+                            backgroundColor: student.isGood ? "primary.main" : "error.main",
+                            color: "#fff",
+                          }}
+                          size="small"
+                          label={student.isGood ? "Borrowed" : "Overdue"}
+                        />
+                      </TableCell>
+                      <TableCell align="left">
+                        <Typography variant="subtitle2">
+                          {student.book.length > 25 ? `${student.book.slice(0, 22)}...` : student.book}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="left">
+                        <Typography variant="subtitle2">
+                          {new Date(student.returnDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow key="no-records-found">
+                    <TableCell colSpan={6} align="center">
+                      <Typography sx={{p:2}}>
+                        {query ? "No matching records found." : "No student records to display."}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Box>
+
+          {selectedStudent && (
+            <Dialog open={openModal} onClose={handleCloseModal} fullWidth maxWidth="sm">
+              <DialogTitle>Manage Book for: {selectedStudent.name}</DialogTitle>
+              <DialogContent>
+                <DialogContentText sx={{mb:1}}>
+                  Book: <strong>{selectedStudent.book}</strong>
+                </DialogContentText>
+                <DialogContentText sx={{mb:2}}>
+                  Current Return Date: {new Date(selectedStudent.returnDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                   ({selectedStudent.isGood ? "Borrowed" : "Overdue"})
+                </DialogContentText>
+
+                <TextField
+                  autoFocus
+                  margin="dense"
+                  id="newReturnDate"
+                  label="New Return Date"
+                  type="date"
+                  fullWidth
+                  variant="outlined"
+                  value={newReturnDate}
+                  onChange={(e) => setNewReturnDate(e.target.value)}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={{ mb: 2 }}
+                />
+                {modalError && <Typography color="error" sx={{mb:1, fontSize: '0.875rem'}}>{modalError}</Typography>}
+
+              </DialogContent>
+              <DialogActions sx={{ position: 'relative', px:3, pb:2 }}>
+                {modalLoading && (
+                  <CircularProgress size={24} sx={{position: 'absolute', left: '50%', top: '50%', marginLeft: '-12px', marginTop: '-12px'}}/>
+                )}
+                <Button onClick={handleCloseModal} color="inherit" disabled={modalLoading}>Cancel</Button>
+                <Button onClick={handleExtendReturnDate} color="primary" variant="outlined" disabled={modalLoading}>
+                  Extend Date
+                </Button>
+                <Button onClick={handleReturnBook} color="error" variant="contained" disabled={modalLoading}>
+                  Return Book
+                </Button>
+              </DialogActions>
+            </Dialog>
+          )}
+        </>
+      </DashboardCard>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }} // Positioned at top-center
+      >
+        <MuiAlert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} variant="filled">
+          {snackbarMessage}
+        </MuiAlert>
+      </Snackbar>
+    </>
   );
 };
 

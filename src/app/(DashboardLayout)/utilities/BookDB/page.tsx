@@ -28,7 +28,7 @@ const Page: React.FC = () => {
     try {
       // Fetch from Open Library API
       const openLibraryResponse = await axios.get(
-        `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}`
+        `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&details=true`
       );
 
       console.log('Open Library Response:', openLibraryResponse.data);
