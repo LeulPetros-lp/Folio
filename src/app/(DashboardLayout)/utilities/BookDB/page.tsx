@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, ChangeEvent, KeyboardEvent } from 'react';
-import { TextField, Dialog, DialogActions, DialogContent, DialogTitle, CircularProgress, Chip, Typography, Button,Grid } from '@mui/material';
+import { TextField, Dialog, DialogActions, DialogContent, DialogTitle, CircularProgress, Chip, Typography, Button, Grid } from '@mui/material';
 import axios from 'axios';
 
 interface Book {
@@ -100,58 +100,58 @@ const Page: React.FC = () => {
 
   return (
     <div className="text-center p-10">
-      <div className="flex justify-center mb-10" style={{ display: 'flex', justifyContent: 'center'}}>
-        <TextField
-          style={{ width: 450}}
-          label="Search for books"
-          variant="outlined"
-          value={query}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyPress} // Handle enter key to submit
-          placeholder="Try: Lords of the ring"
-        /><Button variant='contained'>Get Books</Button>
+      <div className="flex justify-center mb-10" style={{ display: 'flex', justifyContent: 'center' }}>
+          <TextField
+            style={{ width: 450 }}
+            label="Search for books"
+            variant="outlined"
+            value={query}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyPress} // Handle enter key to submit
+            placeholder="Try: Lords of the ring"
+          />
       </div>
 
       <br></br>
       {loading ? (
-  <div style={{ textAlign: 'center', justifyContent: 'center', display: 'flex' }}>
-    <CircularProgress />
-  </div>
-) : error ? (
-  <div className="text-red-500">Error: {error}</div>
-) : (
-  <Grid container spacing={2} justifyContent="center">
-    {books.length > 0 ? (
-      books.map((book) => (
-        <Grid
-          item
-          key={book.key}
-          xs={6} sm={4} md={3} lg={2} xl={2} // Same responsive grid settings
-          className="flex flex-col items-center cursor-pointer transition-transform transform hover:scale-105 hover:shadow-lg"
-          onClick={() => handleBookClick(book)}
-        >
-          {book.coverImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={book.coverImageUrl}
-              alt="Book cover"
-              className="w-20 h-28 mb-2 rounded-lg object-cover"
-            />
+        <div style={{ textAlign: 'center', justifyContent: 'center', display: 'flex' }}>
+          <CircularProgress />
+        </div>
+      ) : error ? (
+        <div className="text-red-500">Error: {error}</div>
+      ) : (
+        <Grid container spacing={2} justifyContent="center">
+          {books.length > 0 ? (
+            books.map((book) => (
+              <Grid
+                item
+                key={book.key}
+                xs={6} sm={4} md={3} lg={2} xl={2} // Same responsive grid settings
+                className="flex flex-col items-center cursor-pointer transition-transform transform hover:scale-105 hover:shadow-lg"
+                onClick={() => handleBookClick(book)}
+              >
+                {book.coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={book.coverImageUrl}
+                    alt="Book cover"
+                    className="w-20 h-28 mb-2 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-20 h-28 flex items-center justify-center bg-gray-200 text-gray-500 rounded-lg">
+                    No Image
+                  </div>
+                )}
+                <p className="text-center text-sm text-gray-700">{book.title}</p>
+              </Grid>
+            ))
           ) : (
-            <div className="w-20 h-28 flex items-center justify-center bg-gray-200 text-gray-500 rounded-lg">
-              No Image
-            </div>
+            <p>No books found</p>
           )}
-          <p className="text-center text-sm text-gray-700">{book.title}</p>
         </Grid>
-      ))
-    ) : (
-      <p>No books found</p>
-    )}
-  </Grid>
-)}
+      )}
 
-      
+
 
       {/* Modal for book confirmation */}
       <Dialog open={open} onClose={() => setOpen(false)}>

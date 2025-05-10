@@ -72,7 +72,7 @@ export default function App() {
         </Card>
 
         {/* Card 2 - From Book Shelf */}
-        <Card sx={{ width: 450 }} component="a" href="/manual-add">
+        <Card sx={{ width: 450 }} component="a" href="/shelf-add">
           <CardActionArea>
             <CardContent>
               <Typography variant="subtitle2" color="textSecondary">

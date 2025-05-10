@@ -26,7 +26,7 @@ import CloseIcon from '@mui/icons-material/Close';
 // Interface for Members from /get-members
 interface Member {
   id: string | number;    // For React key
-  _id: string | number;   // Database ID
+  stud_id: string | number;   // Database ID
   name: string;
   parentPhone: string;
   age: number | string;
@@ -148,7 +148,7 @@ function MembersPreviewPage() {
   };
 
   const handleRevokeMember = async () => {
-    if (!selectedMember || !selectedMember._id) {
+    if (!selectedMember || !selectedMember.stud_id) {
       setSnackbarMessage("No member selected.");
       setSnackbarSeverity('warning');
       setSnackbarOpen(true);
@@ -156,7 +156,7 @@ function MembersPreviewPage() {
     }
 
     // Frontend check before calling API
-    if (!canMemberBeRevoked(selectedMember._id)) {
+    if (!canMemberBeRevoked(selectedMember.stud_id)) {
         setSnackbarMessage("This member has an active borrowing record and cannot be revoked now.");
         setSnackbarSeverity('error');
         setSnackbarOpen(true);
@@ -166,7 +166,7 @@ function MembersPreviewPage() {
     
 
     try {
-      const response = await axios.delete(`http://localhost:5123/revoke-member/${selectedMember._id}`);
+      const response = await axios.delete(`http://localhost:5123/revoke-member/${selectedMember.stud_id}`);
       if (response.status === 200) {
         if (response.data.err) { // Backend blocked the deletion
             setSnackbarMessage(`Could not revoke: ${response.data.err}`);
@@ -174,7 +174,7 @@ function MembersPreviewPage() {
         } else { // Deletion was successful on the backend
             setSnackbarMessage(response.data.message || 'Member revoked successfully!');
             setSnackbarSeverity('success');
-            setMembers(prevMembers => prevMembers.filter(m => m._id !== selectedMember!._id));
+            setMembers(prevMembers => prevMembers.filter(m => m.stud_id !== selectedMember!.stud_id));
             handleCloseModal();
         }
       } else {
@@ -190,7 +190,7 @@ function MembersPreviewPage() {
         userMessage = apiError.response.data.message || apiError.response.data.error || `Server error: ${apiError.response.status}`;
         if (apiError.response.status === 404) { // Member not found in Members collection for deletion
           userMessage = apiError.response.data.message || 'Member not found on the server for revocation.';
-          setMembers(prevMembers => prevMembers.filter(m => m._id !== selectedMember!._id)); // Remove from UI if confirmed not found
+          setMembers(prevMembers => prevMembers.filter(m => m.stud_id !== selectedMember!.stud_id)); // Remove from UI if confirmed not found
           handleCloseModal();
         }
       } else if (apiError.request) {
@@ -237,16 +237,18 @@ function MembersPreviewPage() {
           Members Dashboard
         </Typography>
         <Button
-          sx={{ mt: 2, mb: 4, display: 'block', mx: 'auto', px:4, py: 1.5 }}
+          sx={{ mt: 2, mb: 4, display: 'block', mx: 'auto', px:4, py: 1 }}
           variant="contained"
           color="primary"
           onClick={() => router.push("/members/registration")}
+          fullWidth
         >
           Register New Member
         </Button>
 
         {members.length === 0 ? (
-          <Alert severity="info" sx={{ mt: 2 }} variant="outlined">No members found.</Alert>
+          <p style={{ fontFamily: 'Poppins, sans-serif'}}>No members Registered</p>
+          // <Alert severity="info" sx={{ mt: 2 }} variant="outlined">No members found.</Alert>
         ) : (
           <Stack spacing={2.5}>
             {members.map((member) => (
@@ -292,23 +294,23 @@ function MembersPreviewPage() {
                 {selectedMember.name}'s Details
               </Typography>
               <Box sx={{ mt: 2 }}>
-                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Database ID:</Box> {selectedMember._id}</Typography>
+                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Database ID:</Box> {selectedMember.stud_id}</Typography>
                 <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Parent's Phone:</Box> {selectedMember.parentPhone}</Typography>
                 <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Age:</Box> {selectedMember.age}</Typography>
                 <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Grade:</Box> {selectedMember.grade}</Typography>
                 <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Section:</Box> {selectedMember.section}</Typography>
               </Box>
               <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
-                <Tooltip title={!canMemberBeRevoked(selectedMember._id) ? "Member has an active borrow record and cannot be revoked." : "Revoke this member"}>
+                <Tooltip title={!canMemberBeRevoked(selectedMember.stud_id) ? "Member has an active borrow record and cannot be revoked." : "Revoke this member"}>
                   <span> {/* Tooltip needs a span wrapper for disabled MUI buttons */}
                     <Button
                       variant="contained"
                       onClick={handleRevokeMember}
-                      disabled={!canMemberBeRevoked(selectedMember._id)}
+                      disabled={!canMemberBeRevoked(selectedMember.stud_id)}
                       sx={{
-                        backgroundColor: !canMemberBeRevoked(selectedMember._id) ? 'grey.400' : 'error.main',
+                        backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.main',
                         '&:hover': { 
-                            backgroundColor: !canMemberBeRevoked(selectedMember._id) ? 'grey.400' : 'error.dark' 
+                            backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.dark' 
                         },
                       }}
                     >

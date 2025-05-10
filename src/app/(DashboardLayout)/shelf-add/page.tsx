@@ -28,21 +28,33 @@ interface ShelfItem {
   Isbn: string;
 }
 
+interface Member {
+  stud_id: string;
+  name: string;
+  age: number;
+  grade: string | number; // Accommodates string or number as seen in sample data/schema
+  section: string;
+  parentPhone?: number;
+  _id?: string;
+}
+
 export default function Page() {
   const [bookDets, setBookDetails] = useState<BookDetails | null>(null);
-  const [isbn, setIsbn] = useState<string>("");
+  const [isbn, setIsbn] = useState<string>(""); // Stores BookName for selection from ShelfItem
   const [duration, setDuration] = useState<Duration | null>(null);
   const [returnDate, setReturnDate] = useState<ReturnDate | null>(null);
   const [age, setAge] = useState<Age | "">("");
-  const [grade, setGrade] = useState<number | "">("");
+  const [grade, setGrade] = useState<string | number | "">("");
   const [section, setSection] = useState<string>("");
-  const [name, setName] = useState<string>(""); // Member Name
-  const [shelf, setShelf] = useState<ShelfItem[]>([]); // Book Shelf
-  const [membersList, setMembers] = useState<any[]>([]); // Members List
-  const [openModal, setOpenModal] = useState(false);
-  const [isGood, setIsGood] = useState(false)
+  const [name, setName] = useState<string>("");
+  const [selectedStudId, setSelectedStudId] = useState<string>("");
 
-  const router = useRouter()
+  const [shelf, setShelf] = useState<ShelfItem[]>([]);
+  const [membersList, setMembers] = useState<Member[]>([]);
+  const [openModal, setOpenModal] = useState(false);
+  const [isGood, setIsGood] = useState(false); // Used for frontend validation and sent to backend
+
+  const router = useRouter();
 
   const StyledModalBox = styled(Box)({
     position: "absolute",
@@ -54,17 +66,27 @@ export default function Page() {
     boxShadow: "24",
     borderRadius: "8px",
     outline: "none",
+    minWidth: "300px",
   });
 
   const handleAddStudentClick = () => {
-    console.log({ name, age, isbn, grade, section, duration }); // Debug log
-    if (!name.trim() || !age || !isbn.trim() || !grade || !section.trim() || !duration) {
-      // Open modal even if validation fails
-      setOpenModal(true);
+    console.log({ name, age, isbn, grade, section, duration, selectedStudId, bookActualIsbn: bookDets?.isbn });
+
+    if (
+      !name.trim() ||
+      !age ||
+      !selectedStudId?.trim() ||
+      !isbn.trim() || // isbn here is the BookName selected, used to find bookDets
+      !bookDets?.isbn || // This checks if actual book details (with ISBN) are loaded
+      (grade === undefined || grade === "") || // More explicit check for grade
+      !section.trim() ||
+      !duration
+    ) {
+      setIsGood(false);
     } else {
-      // Open modal for confirmation
-      setOpenModal(true);
+      setIsGood(true);
     }
+    setOpenModal(true);
   };
 
   const handleDuration = (key: string) => {
@@ -72,6 +94,7 @@ export default function Page() {
       setDuration(key as Duration);
     } else {
       console.error("Invalid duration key");
+      setDuration(null);
     }
   };
 
@@ -102,26 +125,60 @@ export default function Page() {
         });
       };
       calc_return_date();
+    } else {
+        setReturnDate(null);
     }
   }, [duration]);
 
   const done_btn = async () => {
+    if (!isGood) {
+        console.error("Attempted to submit with invalid or incomplete data based on frontend check.");
+        return;
+    }
+
+    // Construct the payload with keys matching backend expectations
+    const payload = {
+      name: name,
+      age: age,
+      grade: String(grade), // Ensure grade is sent as a string if schema expects string
+      section: section,
+      duration: duration,
+      returnDate: returnDate,   // Object {day, month, year}
+      bookDets: bookDets,       // Object {title, isbn, coverImageUrl}, key is 'bookDets'
+      isGood: isGood,           // Boolean, required by schema & backend
+      stud_id: selectedStudId   // String, required by schema & backend
+    };
+
+    console.log("Attempting to send this payload to /add-student:", JSON.stringify(payload, null, 2));
+
     try {
-      await axios.post("http://localhost:5123/add-student", {
-        bookDets,
-        name,
-        age,
-        grade,
-        section,
-        duration,
-        returnDate,
-        isGood
-      });
-      console.log("Student added successfully!");
-      setOpenModal(false); // Close modal after successful submission
-      router.replace("/")
+      await axios.post("http://localhost:5123/add-student", payload);
+
+      console.log("Student borrowing record added successfully!");
+      setOpenModal(false);
+      // Reset form fields
+      setName("");
+      setAge("");
+      setGrade("");
+      setSection("");
+      setSelectedStudId("");
+      setIsbn("");
+      setBookDetails(null);
+      setDuration(null);
+      setReturnDate(null);
+      setIsGood(false);
+
+      router.replace("/");
     } catch (err_db) {
       console.error("Error submitting data:", err_db);
+      if (axios.isAxiosError(err_db) && err_db.response) {
+        console.error("Backend response data:", err_db.response.data);
+        console.error("Backend response status:", err_db.response.status);
+        // Optionally, set an error message state here to display in the modal
+        // For example: alert(`Error: ${err_db.response.data.message || 'Submission failed'}`);
+      } else {
+        // alert('An unexpected error occurred.');
+      }
     }
   };
 
@@ -129,18 +186,20 @@ export default function Page() {
     const get_shelf = async () => {
       try {
         const response = await axios.get("http://localhost:5123/shelf-item");
-        setShelf(response.data.data);
+        setShelf(response.data.data || []);
       } catch (err) {
         console.error("Error fetching shelf items:", err);
+        setShelf([]);
       }
     };
 
     const get_members = async () => {
       try {
-        const response = await axios.get("http://localhost:5123/get-members");
-        setMembers(response.data.data);
+        const response = await axios.get<{ data: Member[] }>("http://localhost:5123/get-members");
+        setMembers(response.data.data || []);
       } catch (err) {
         console.error("Error fetching members:", err);
+        setMembers([]);
       }
     };
     get_members();
@@ -148,21 +207,34 @@ export default function Page() {
   }, []);
 
   const getBook = () => {
+    if (!isbn) { // isbn state holds the BookName from Autocomplete selection
+        setBookDetails(null);
+        return;
+    }
     const selectedBook = shelf.find((item) => item.BookName === isbn);
     if (selectedBook) {
       setBookDetails({
         title: selectedBook.BookName,
         coverImageUrl: selectedBook.ImgUrl,
-        isbn: selectedBook.Isbn,
+        isbn: selectedBook.Isbn, // Actual ISBN from the shelf item
       });
     } else {
       setBookDetails({
         title: "Book Not Found",
-        coverImageUrl: "",
+        coverImageUrl: "https://covers.openlibrary.org/b/id/7898938-L.jpg",
         isbn: "",
       });
     }
   };
+
+   useEffect(() => {
+    if (isbn && shelf.length > 0) {
+        getBook();
+    } else if (!isbn) {
+        setBookDetails(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isbn, shelf]); // getBook depends on shelf data as well
 
   return (
     <div className="p-12">
@@ -176,19 +248,25 @@ export default function Page() {
         />
 
         <div style={{ width: "400px" }}>
-          {/* Member Selection */}
           <div style={{ display: "flex", gap: 20 }}>
             <div style={{ flex: 2, display: "flex", gap: 20, alignItems: "center" }}>
               <Autocomplete
-                options={membersList || []}
-                getOptionLabel={(option: any) => option.name || ""}
-                onInputChange={(e, value) => setName(value)}
-                onChange={(event, value: any) => {
+                options={membersList}
+                getOptionLabel={(option: Member) => option.name || ""}
+                isOptionEqualToValue={(option, value) => option.stud_id === value.stud_id}
+                onChange={(event, value: Member | null) => {
                   if (value) {
                     setName(value.name);
                     setAge(value.age);
                     setGrade(value.grade);
                     setSection(value.section);
+                    setSelectedStudId(value.stud_id);
+                  } else {
+                    setName("");
+                    setAge("");
+                    setGrade("");
+                    setSection("");
+                    setSelectedStudId("");
                   }
                 }}
                 renderInput={(params) => <TextField {...params} label="Select Member" />}
@@ -204,23 +282,22 @@ export default function Page() {
           </div>
           <br />
           <div style={{ display: "flex", gap: 20 }}>
-            <TextField label="Year" value={grade} disabled style={{ flex: 1 }} />
+            <TextField label="Grade" value={grade} disabled style={{ flex: 1 }} />
             <TextField label="Section" value={section} disabled style={{ width: 100 }} />
           </div>
 
-          {/* Book Selection */}
-          <div style={{ display: "flex", gap: 20 }}>
+          <div style={{ display: "flex", gap: 20, alignItems: "center", marginTop: "20px" }}>
             <Autocomplete
               options={shelf}
-              getOptionLabel={(option) => option.BookName}
-              onChange={(event, value) => {
-                setIsbn(value?.BookName || "");
+              getOptionLabel={(option: ShelfItem) => option.BookName}
+              isOptionEqualToValue={(option, value) => option._id === value._id}
+              onChange={(event, value: ShelfItem | null) => {
+                setIsbn(value?.BookName || ""); // Sets BookName to trigger useEffect for getBook
               }}
               renderInput={(params) => <TextField {...params} label="Select Book" />}
               fullWidth
-              style={{ marginTop: "20px" }}
             />
-            <Button onClick={getBook}>Get Book</Button>
+            <Button onClick={getBook} size="small" sx={{height: "56px"}}>Get Book</Button>
           </div>
 
           <TextField
@@ -231,13 +308,13 @@ export default function Page() {
             fullWidth
             style={{ marginTop: 20 }}
           >
+            <MenuItem value="" disabled><em>Select duration</em></MenuItem>
             <MenuItem value="3-days">3 days</MenuItem>
             <MenuItem value="1-week">1 week</MenuItem>
             <MenuItem value="2-week">2 weeks</MenuItem>
             <MenuItem value="1-month">1 month</MenuItem>
           </TextField>
 
-          {/* Add Student */}
           <Button
             onClick={handleAddStudentClick}
             fullWidth
@@ -256,28 +333,35 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Modal */}
       <Modal open={openModal} onClose={() => setOpenModal(false)}>
         <StyledModalBox>
-          {name && age && grade && section && isbn && duration ? (
+          {isGood ? (
             <>
               <h3>Confirm Student Addition</h3>
               <p>Do you want to add the student with the following details?</p>
-              <p>Name: {name}</p>
+              <p>Name: {name} (Student ID: {selectedStudId})</p>
               <p>Age: {age}</p>
               <p>Grade: {grade}, Section: {section}</p>
-              <p>Book: {bookDets?.title}</p>
-              <p>
-                Return Date: {returnDate?.day}/{returnDate?.month}/{returnDate?.year}
-              </p>
-              <Button onClick={done_btn} color="primary">
-                Confirm
-              </Button>
+              <p>Book: {bookDets?.title} (ISBN: {bookDets?.isbn || "N/A"})</p>
+              {returnDate && (
+                 <p>Return Date: {returnDate.day}/{returnDate.month}/{returnDate.year}</p>
+              )}
+              <div style={{ marginTop: "15px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <Button onClick={() => setOpenModal(false)} color="secondary">Cancel</Button>
+                <Button onClick={done_btn} color="primary" variant="contained">
+                  Confirm
+                </Button>
+              </div>
             </>
           ) : (
             <>
               <h3>Error</h3>
-              <p>Please fill in all fields before adding a student.</p>
+              <p>Please fill in all required fields and ensure member and book are correctly selected.</p>
+              <div style={{ marginTop: "15px", textAlign: "right" }}>
+                <Button onClick={() => setOpenModal(false)} color="primary" variant="contained">
+                    OK
+                </Button>
+              </div>
             </>
           )}
         </StyledModalBox>

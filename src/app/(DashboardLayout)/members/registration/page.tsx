@@ -14,12 +14,15 @@ import {
 import { styled } from "@mui/system";
 import axios from "axios";
 import PageContainer from "@/app/(DashboardLayout)/components/container/PageContainer";
-import { useRouter } from "next/navigation"
-// import Logo from "@/app/(DashboardLayout)/layout/shared/logo/Logo"; // Assuming Logo is still intended to be commented out or handled elsewhere
+import { useRouter } from "next/navigation";
+import { v4 as uuidv4 } from "uuid"; // Correctly imported
+
+// import Logo from "@/app/(DashboardLayout)/layout/shared/logo/Logo";
 
 interface MemberFormData {
+  studentId: string; // Added studentId
   name: string;
-  parentPhone: string; // Changed to camelCase
+  parentPhone: string;
   age: number | "";
   grade: number | "";
   section: string;
@@ -38,13 +41,12 @@ const StyledModalBox = styled(Box)(({ theme }) => ({
 }));
 
 export default function Page() {
-
-
-  const router = useRouter()
+  const router = useRouter();
 
   const [formData, setFormData] = useState<MemberFormData>({
+    studentId: "", // Initialized studentId
     name: "",
-    parentPhone: "", // Changed to camelCase
+    parentPhone: "",
     age: "",
     grade: "",
     section: "",
@@ -62,32 +64,38 @@ export default function Page() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validation now uses formData.parentPhone (camelCase)
+
     if (!formData.name || !formData.parentPhone || !formData.age || !formData.grade || !formData.section) {
       setError("Please fill in all fields");
       setOpenModal(true);
       return;
     }
 
+    const stud_id = uuidv4(); // Generate studentId
+
+    const dataToSend = {
+      ...formData,
+      stud_id, // Add generated studentId to the data being sent
+    };
+
     try {
-      // The formData sent will now include "parentPhone" (camelCase)
-      const response = await axios.put("http://localhost:5123/add/member", formData);
+      const response = await axios.put("http://localhost:5123/add/member", dataToSend); // Send dataToSend
       if (response.status === 200) {
         setError(null);
         setOpenModal(true);
         setFormData({ // Reset form
+          studentId: "", // Reset studentId
           name: "",
-          parentPhone: "", // Changed to camelCase
+          parentPhone: "",
           age: "",
           grade: "",
           section: "",
         });
 
-        router.push("/")
+        console.log(response)
+
+        router.push("/");
       }
-
-
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
         setError(err.response.data.message || "Failed to add member. Please try again.");
@@ -104,19 +112,19 @@ export default function Page() {
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Card sx={{ p: 4 }}>
-              {/* Logo Section (assuming still commented out or handled by Logo component if imported) */}
-              {/* <Box 
-                display="flex" 
-                justifyContent="center" 
+              {/* Logo Section */}
+              {/* <Box
+                display="flex"
+                justifyContent="center"
                 mb={4}
                 sx={{
-                  '& > div': { 
-                    transform: 'scale(1.5)', 
-                    marginY: 4, 
+                  '& > div': {
+                    transform: 'scale(1.5)',
+                    marginY: 4,
                   }
                 }}
               >
-                <Logo /> 
+                <Logo />
               </Box>
               */}
 
@@ -134,7 +142,7 @@ export default function Page() {
                   {/* Name */}
                   <Grid item xs={12} md={6}>
                     <TextField
-                      label="Student Name"
+                      label="Student Full Name"
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
@@ -143,12 +151,12 @@ export default function Page() {
                       variant="outlined"
                     />
                   </Grid>
-                  {/* Parent's Phone Number - now uses parentPhone (camelCase) */}
+                  {/* Parent's Phone Number */}
                   <Grid item xs={12} md={6}>
                     <TextField
                       label="Parent's Phone Number"
-                      name="parentPhone" // Changed to camelCase
-                      value={formData.parentPhone} // Changed to camelCase
+                      name="parentPhone"
+                      value={formData.parentPhone}
                       onChange={handleInputChange}
                       required
                       fullWidth

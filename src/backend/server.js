@@ -85,31 +85,66 @@ app.get('/api/book/:isbn', async (req, res) => {
 });
 
 // Add a new student
+// const Student = require('./path-to-your-Student-model'); // Make sure Student model is imported
+
 app.post('/add-student', async (req, res) => {
   try {
-    const { bookDets, name, age, grade, section, duration, returnDate, isGood } = req.body;
+    const { bookDets, name, age, grade, section, duration, returnDate, isGood, stud_id } = req.body;
 
-    if (!name || !age || !grade || !section || !duration || !returnDate) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // --- Robust Validation ---
+    // Check for presence of all fundamental fields
+    if (!name || !age || (grade === undefined || grade === "") || !section || !duration || !returnDate || !stud_id || (isGood === undefined)) {
+      // Log for debugging if validation fails
+      console.error("Validation failed. Missing fundamental fields. Received body:", req.body);
+      return res.status(400).json({ message: 'Required fields are missing: name, age, grade, section, duration, returnDate, stud_id, or isGood status.' });
     }
 
-    const student = new Student({
+    // Specifically validate bookDets if a book is being assigned
+    // Assuming for this endpoint, bookDets is expected if the operation is "add student with book"
+    if (!bookDets || typeof bookDets !== 'object' || !bookDets.title || !bookDets.isbn) {
+      console.error("Validation failed. Problematic bookDets. Received bookDets:", bookDets);
+      return res.status(400).json({ message: 'Valid book details (including title and ISBN) are required.' });
+    }
+
+    // Validate returnDate structure
+    if (!returnDate || typeof returnDate !== 'object' || !returnDate.year || !returnDate.month || !returnDate.day) {
+        console.error("Validation failed. Problematic returnDate. Received returnDate:", returnDate);
+        return res.status(400).json({ message: 'Valid return date object (including year, month, day) is required.' });
+    }
+
+    // --- Data Preparation for Mongoose Model ---
+    const studentData = {
       name,
       age,
       grade,
       section,
-      book: bookDets.title || "Book Title",  // Correctly reference the book title from bookDets
-      isbn: bookDets.isbn || "0123456789", // Handle optional ISBN
+      book: { // Populate the 'book' object as per your schema
+        title: bookDets.title,
+        isbn: bookDets.isbn,
+        coverImageUrl: bookDets.coverImageUrl || "", // Provide a default if optional and not present
+      },
       duration,
       isGood,
-      returnDate: new Date(returnDate.year, returnDate.month - 1, returnDate.day)  // Convert returnDate to a Date object
-    });
+      returnDate: new Date(returnDate.year, returnDate.month - 1, returnDate.day), // Convert to Date
+      stud_id,
+    };
 
+    const student = new Student(studentData);
     await student.save();
+
+    // Send success response ONLY ONCE
     res.status(200).json({ message: 'Student successfully added', student });
+
   } catch (err) {
-    console.error('Error saving student:', err);
-    res.status(500).json({ message: "Couldn't add student to db" });
+    console.error('Error in /add-student route:', err);
+    if (err.name === 'ValidationError') {
+      // Send Mongoose validation errors back to the client
+      return res.status(400).json({ message: "Validation Error from Schema", errors: err.errors });
+    }
+    // Ensure response is only sent if headers haven't been sent by an earlier error
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Couldn't add student to db due to an internal server error" });
+    }
   }
 });
 
@@ -272,13 +307,22 @@ app.delete('/return-book/:studentId', async (req, res) => {
 
 app.put('/add/member', async (req, res) => {
   try {
-    const { name, parentPhone, age, grade, section } = req.body;
+    // Destructure studentId from the request body
+    const { stud_id, name, parentPhone, age, grade, section } = req.body;
 
-    if (!name || !parentPhone || !age || !grade || !section) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Updated validation to include studentId
+    if (!stud_id || !name || !parentPhone || !age || !grade || !section) {
+      return res.status(400).json({ message: 'All fields are required, including stud_id' });
     }
 
+    // Optional: Check if a member with this studentId already exists if it should be unique
+    // const existingMember = await Members.findOne({ studentId });
+    // if (existingMember) {
+    //   return res.status(409).json({ message: 'Member with this Student ID already exists' });
+    // }
+
     const member = new Members({
+      stud_id, // Include studentId when creating the new member
       name,
       parentPhone,
       age,
@@ -290,6 +334,10 @@ app.put('/add/member', async (req, res) => {
     res.status(200).json({ message: 'Member added successfully', member });
   } catch (err) {
     console.error('Error adding member:', err);
+    // Provide more specific error messages if possible
+    if (err.code === 11000) { // MongoDB duplicate key error
+        return res.status(409).json({ message: "A member with this student ID or other unique field already exists." });
+    }
     res.status(500).json({ message: "Couldn't add member to db" });
   }
 });
@@ -317,7 +365,7 @@ app.delete('/revoke-member/:id', async (req, res) => {
 
   try {
     // Step 1: Check the Student collection (or your borrow tracking collection)
-    const studentBorrowRecord = await Student.findById(memberId);
+    const studentBorrowRecord = await Student.findOne({ stud_id: memberId});
     console.log(`BACKEND: Result of Student.findById('${memberId}'):`, JSON.stringify(studentBorrowRecord, null, 2));
 
     // Step 2: Determine if the found student record (if any) indicates an active borrow
@@ -337,9 +385,9 @@ app.delete('/revoke-member/:id', async (req, res) => {
       }
 
       // Step 3: Proceed to delete from the main Members collection
-      const memberDeletionResult = await Members.findByIdAndDelete(memberId);
+      const memberDeletionResult = await Members.findOneAndDelete({ stud_id: memberId});
 
-      if (!memberDeletionResult) {
+    if (!memberDeletionResult) {
         console.log(`BACKEND: Member NOT found in 'Members' collection with ID '${memberId}' for deletion.`);
         return res.status(404).json({ message: 'Member not found in Members collection.' });
       }
@@ -355,7 +403,7 @@ app.delete('/revoke-member/:id', async (req, res) => {
         return res.status(400).json({ error: `Invalid Member ID format: ${memberId}.` });
     }
     // Generic server error
-    return res.status(500).json({ error: 'Internal Server Error while attempting to revoke member.' });
+    return res.status(400).json({ error: "Can't revoke students membership - student is still on the borrowers list" });
   }
 });
 

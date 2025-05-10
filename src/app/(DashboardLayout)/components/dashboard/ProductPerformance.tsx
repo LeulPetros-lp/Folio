@@ -15,10 +15,10 @@ import {
   DialogContentText,
   DialogTitle,
   CircularProgress,
-  Snackbar, // Import Snackbar
-  Alert as MuiAlert, // Import Alert and alias it to avoid conflict if needed
+  Snackbar,
+  Alert as MuiAlert,
 } from "@mui/material";
-import { AlertColor } from '@mui/material/Alert'; // Import AlertColor for typing
+import { AlertColor } from '@mui/material/Alert';
 import DashboardCard from "@/app/(DashboardLayout)//components/shared/DashboardCard";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation"
@@ -27,11 +27,10 @@ import axios from "axios";
 interface Student {
   id: string;
   name: string;
-  post: string;
   grade: string;
   section: string;
   isGood: boolean;
-  book: string;
+  book: { title: string } | null;
   returnDate: string;
 }
 
@@ -76,7 +75,6 @@ const ProductPerformance: React.FC = () => {
         console.error("Error fetching students:", err);
         const errorMessage = err.response?.data?.message || "Failed to fetch students. Please ensure the backend server is running.";
         setError(errorMessage);
-        // showSnackbar(errorMessage, "error"); // Optionally show snackbar for initial load error too
         setStudents([]);
         setLoading(false);
       });
@@ -128,7 +126,6 @@ const ProductPerformance: React.FC = () => {
     setModalError(null);
   };
 
-  // Return book
   const handleReturnBook = async () => {
     if (!selectedStudent) return;
     setModalLoading(true);
@@ -145,8 +142,8 @@ const ProductPerformance: React.FC = () => {
     } catch (err: any) {
       console.error("Error returning book:", err);
       const errorMessage = err.response?.data?.message || "Failed to return book.";
-      setModalError(errorMessage); // Show error in modal
-      handleShowSnackbar(errorMessage, "error"); // Also show error in snackbar
+      setModalError(errorMessage);
+      handleShowSnackbar(errorMessage, "error");
     } finally {
       setModalLoading(false);
     }
@@ -159,13 +156,12 @@ const ProductPerformance: React.FC = () => {
     if (!newReturnDate) {
       const dateEmptyMsg = "New return date cannot be empty.";
       setModalError(dateEmptyMsg);
-      handleShowSnackbar(dateEmptyMsg, "warning"); // Use warning for validation
+      handleShowSnackbar(dateEmptyMsg, "warning");
       return;
     }
     setModalLoading(true);
     setModalError(null);
     try {
-      // const response = // If you need to use the response
       await axios.put(
         `${API_BASE_URL}/extend-return-date/${selectedStudent.id}`,
         { newReturnDate }
@@ -183,8 +179,8 @@ const ProductPerformance: React.FC = () => {
     } catch (err: any) {
       console.error("Error extending return date:", err);
       const errorMessage = err.response?.data?.message || "Failed to extend return date.";
-      setModalError(errorMessage); // Show error in modal
-      handleShowSnackbar(errorMessage, "error"); // Also show error in snackbar
+      setModalError(errorMessage);
+      handleShowSnackbar(errorMessage, "error");
     } finally {
       setModalLoading(false);
     }
@@ -213,7 +209,7 @@ const ProductPerformance: React.FC = () => {
   }
 
   return (
-    <> {/* Wrap with Fragment or a top-level Box if Snackbar needs specific positioning relative to all content */}
+    <>
       <DashboardCard title="">
         <>
           <Box
@@ -264,7 +260,6 @@ const ProductPerformance: React.FC = () => {
                         <Box sx={{ display: "flex", alignItems: "center" }}>
                           <Box>
                             <Typography variant="subtitle2" fontWeight={600}>{student.name}</Typography>
-                            <Typography color="textSecondary" sx={{ fontSize: "13px" }}>{student.post}</Typography>
                           </Box>
                         </Box>
                       </TableCell>
@@ -282,7 +277,7 @@ const ProductPerformance: React.FC = () => {
                       </TableCell>
                       <TableCell align="left">
                         <Typography variant="subtitle2">
-                          {student.book.length > 25 ? `${student.book.slice(0, 22)}...` : student.book}
+                          {student.book ? student?.book.title.length > 19 ? `${student.book.title.slice(0, 19)} ...` : student.book.title : "No Book"}
                         </Typography>
                       </TableCell>
                       <TableCell align="left">
@@ -310,7 +305,7 @@ const ProductPerformance: React.FC = () => {
               <DialogTitle>Manage Book for: {selectedStudent.name}</DialogTitle>
               <DialogContent>
                 <DialogContentText sx={{mb:1}}>
-                  Book: <strong>{selectedStudent.book}</strong>
+                  Book: <strong>{selectedStudent.book ? selectedStudent.book.title : "No Book"}</strong>
                 </DialogContentText>
                 <DialogContentText sx={{mb:2}}>
                   Current Return Date: {new Date(selectedStudent.returnDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -355,7 +350,7 @@ const ProductPerformance: React.FC = () => {
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }} // Positioned at top-center
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <MuiAlert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }} variant="filled">
           {snackbarMessage}
@@ -366,3 +361,4 @@ const ProductPerformance: React.FC = () => {
 };
 
 export default ProductPerformance;
+

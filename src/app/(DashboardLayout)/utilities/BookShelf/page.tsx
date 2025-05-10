@@ -81,7 +81,7 @@ export default function Page() {
   return (
     <div style={{ padding: "20px" }}>
       <Typography variant="h4" align="center" gutterBottom>
-        Your Library Book Shelf
+        Your Library Book Shelf ({books?.length}*)
       </Typography>
       <br></br>
       {/* Grid layout for images */}

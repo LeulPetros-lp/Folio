@@ -21,6 +21,10 @@ const MemberSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    stud_id: {
+        type: String, 
+        required: true,
+      }
 }, { timestamps: true })
 
 
