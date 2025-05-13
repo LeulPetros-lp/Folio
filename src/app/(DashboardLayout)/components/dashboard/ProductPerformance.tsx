@@ -23,6 +23,7 @@ import DashboardCard from "@/app/(DashboardLayout)//components/shared/DashboardC
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation"
 import axios from "axios";
+import Image from "next/image"
 
 interface Student {
   id: string;
@@ -30,8 +31,9 @@ interface Student {
   grade: string;
   section: string;
   isGood: boolean;
-  book: { title: string } | null;
+  book: any
   returnDate: string;
+  coverImageUrl: string
 }
 
 const API_BASE_URL = "http://localhost:5123";
@@ -113,6 +115,7 @@ const ProductPerformance: React.FC = () => {
 
   const handleOpenModal = (student: Student) => {
     setSelectedStudent(student);
+
     setNewReturnDate(student.returnDate ? new Date(student.returnDate).toISOString().split('T')[0] : "");
     setModalError(null);
     setOpenModal(true);
@@ -199,12 +202,12 @@ const ProductPerformance: React.FC = () => {
 
   if (error) {
     return (
-        <DashboardCard title="Student Catalogue">
-            <Box sx={{ textAlign: 'center', p: 3 }}>
-                <Typography color="error">{error}</Typography>
-                <Button onClick={fetchStudents} variant="contained" sx={{ mt: 2 }}>Try Again</Button>
-            </Box>
-        </DashboardCard>
+      <DashboardCard title="Student Catalogue">
+        <Box sx={{ textAlign: 'center', p: 3 }}>
+          <Typography color="error">{error}</Typography>
+          <Button onClick={fetchStudents} variant="contained" sx={{ mt: 2 }}>Try Again</Button>
+        </Box>
+      </DashboardCard>
     );
   }
 
@@ -290,7 +293,7 @@ const ProductPerformance: React.FC = () => {
                 ) : (
                   <TableRow key="no-records-found">
                     <TableCell colSpan={6} align="center">
-                      <Typography sx={{p:2}}>
+                      <Typography sx={{ p: 2 }}>
                         {query ? "No matching records found." : "No student records to display."}
                       </Typography>
                     </TableCell>
@@ -303,13 +306,37 @@ const ProductPerformance: React.FC = () => {
           {selectedStudent && (
             <Dialog open={openModal} onClose={handleCloseModal} fullWidth maxWidth="sm">
               <DialogTitle>Manage Book for: {selectedStudent.name}</DialogTitle>
+
+              {/* <div style={{ textAlign: 'center'}}>
+                <Image
+                  src={selectedStudent.book.coverImageUrl}
+                  // The width and height props are still important for Next.js's image optimization.
+                  // They help Next.js determine the intrinsic size or aspect ratio to optimize for.
+                  // The 'objectFit: cover' style will then ensure the image covers the dimensions
+                  // specified in the style prop (5rem x 7rem), cropping if necessary.
+                  width={200}
+                  height={200} // If your source images are often square, object-cover will handle the aspect difference.
+                  // If they match the 5:7 aspect ratio (e.g., width={200} height={280}), less/no cropping will occur.
+                  alt="Book Image"
+                  style={{
+                    width: '12rem',        // from w-20
+                    height: '15rem',       // from h-28
+                    marginBottom: '0.5rem', // from mb-2
+                    borderRadius: '0.5rem', // from rounded-lg
+                    objectFit: 'cover',     // from object-cover
+                  }}
+                // className prop is removed as styles are now inline
+                />
+              </div> */}
               <DialogContent>
-                <DialogContentText sx={{mb:1}}>
+
+
+                <DialogContentText sx={{ mb: 1 }}>
                   Book: <strong>{selectedStudent.book ? selectedStudent.book.title : "No Book"}</strong>
                 </DialogContentText>
-                <DialogContentText sx={{mb:2}}>
+                <DialogContentText sx={{ mb: 2 }}>
                   Current Return Date: {new Date(selectedStudent.returnDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                   ({selectedStudent.isGood ? "Borrowed" : "Overdue"})
+                  ({selectedStudent.isGood ? "Borrowed" : "Overdue"})
                 </DialogContentText>
 
                 <TextField
@@ -327,12 +354,12 @@ const ProductPerformance: React.FC = () => {
                   }}
                   sx={{ mb: 2 }}
                 />
-                {modalError && <Typography color="error" sx={{mb:1, fontSize: '0.875rem'}}>{modalError}</Typography>}
+                {modalError && <Typography color="error" sx={{ mb: 1, fontSize: '0.875rem' }}>{modalError}</Typography>}
 
               </DialogContent>
-              <DialogActions sx={{ position: 'relative', px:3, pb:2 }}>
+              <DialogActions sx={{ position: 'relative', px: 3, pb: 2 }}>
                 {modalLoading && (
-                  <CircularProgress size={24} sx={{position: 'absolute', left: '50%', top: '50%', marginLeft: '-12px', marginTop: '-12px'}}/>
+                  <CircularProgress size={24} sx={{ position: 'absolute', left: '50%', top: '50%', marginLeft: '-12px', marginTop: '-12px' }} />
                 )}
                 <Button onClick={handleCloseModal} color="inherit" disabled={modalLoading}>Cancel</Button>
                 <Button onClick={handleExtendReturnDate} color="primary" variant="outlined" disabled={modalLoading}>

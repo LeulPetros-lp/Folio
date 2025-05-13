@@ -124,7 +124,7 @@ const Page: React.FC = () => {
       ) : (
         <Grid container spacing={2} justifyContent="center">
           {books.length > 0 ? (
-            books.map((book) => {
+            books.map((book) => { 
 
               return (
                 <Grid
@@ -145,28 +145,31 @@ const Page: React.FC = () => {
                       }}
                     />
                   ) : (
-                    <Card style={{ width: 200, height: 200, backgroundColor: '#333',justifyContent: 'center', textAlign: 'center', alignItems: 'center'}} className=" flex items-center justify-center bg-gray-200 text-gray-500 rounded-lg">
-                      {/* Make the "No Image" box equal size */}
-                      <span style={{ color: 'white'}}>No Image</span>
+                    <Card
+                    sx={{
+                      width: '10rem',
+                      height: '14rem',
+                      mx: 'auto',
+                      mb: '1rem', // Corresponds to Tailwind's mb-4
+                      borderRadius: '0.5rem', // Corresponds to Tailwind's rounded-lg
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'white', // Corresponds to Tailwind's bg-gray-200
+                      // Note: objectFit: 'cover' from your list is for image content, not the Card container itself.
+                    }}
+                    variant="outlined" // Optional: gives a border, good for placeholders
+                  >
+                    <Typography sx={{ color: 'grey.700' /* Corresponds to text-gray-500 */ }}>
+                      No Image
+                    </Typography>
+
                     </Card>
                   )}
                   <p className="text-center text-sm text-gray-700">{book.title}</p>
                   {/* <p className="text-center text-xs text-gray-500">
                     By {book.author_name?.join(', ') || 'Unknown Author'}
                   </p> */}
-
-                  {/* Display Subjects as Chips */}
-                  <Box mt={1} display="flex" flexWrap="wrap" justifyContent="center">
-                    {book.subject && book.subject.slice(0, 3).map((subject, index) => (
-                      <Chip
-                        key={index}
-                        label={subject}
-                        color="primary"
-                        size="small"
-                        sx={{ margin: '2px' }}
-                      />
-                    ))}
-                  </Box>
                 </Grid>
               );
             })
@@ -191,10 +194,25 @@ const Page: React.FC = () => {
                   style={{ borderRadius: 10}}
                 />
               ) : (
-                <Card className="w-40 h-56 mx-auto mb-4 flex items-center justify-center bg-gray-200 text-gray-500">
-                  {/* Use a Card here */}
-                  <span>No Image</span>
-                </Card>
+                <Card
+                sx={{
+                  width: '10rem',
+                  height: '14rem',
+                  mx: 'auto',
+                  mb: '1rem', // Corresponds to Tailwind's mb-4
+                  borderRadius: '0.5rem', // Corresponds to Tailwind's rounded-lg
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'white', // Corresponds to Tailwind's bg-gray-200
+                  // Note: objectFit: 'cover' from your list is for image content, not the Card container itself.
+                }}
+                variant="outlined" // Optional: gives a border, good for placeholders
+              >
+                <Typography sx={{ color: 'grey.700' /* Corresponds to text-gray-500 */ }}>
+                  No Image
+                </Typography>
+              </Card>
               )}
 
               <p><strong>Title:</strong> {selectedBook.title}</p>

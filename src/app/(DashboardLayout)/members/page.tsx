@@ -305,6 +305,10 @@ function MembersPreviewPage() {
                       <Typography variant="body2" color="text.secondary">
                         ID: {member.stud_id} | Age: {member.age} | Grade: {member.grade} | Section: {member.section}
                       </Typography>
+
+                      <Typography>
+                        10
+                      </Typography>
                     </Box>
                     {/* Optionally, show an indicator if member cannot be revoked */}
                     {!canMemberBeRevoked(member.stud_id) && (
