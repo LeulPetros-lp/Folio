@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { type } = require('os')
 
 const MemberSchema = new mongoose.Schema({
     name: {
@@ -16,6 +17,14 @@ const MemberSchema = new mongoose.Schema({
     grade: {
         type: String,
         required: true
+    },
+    level: {
+        type: String, 
+        required: true
+    }, 
+    score: {
+        type: Number,
+        required: true,
     },
     section: {
         type: String,

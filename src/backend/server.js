@@ -66,23 +66,52 @@ app.get('/list-students', async (req, res) => {
 // Fetch book details by ISBN
 app.get('/api/book/:isbn', async (req, res) => {
   const isbn = req.params.isbn;
-  try {
-    const response = await axios.get(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=details`);
-    const bookData = response.data;
-    const bookKey = `ISBN:${isbn}`;
+  // Updated Google Books API URL with projection=full
+  const googleBooksApiUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&projection=full`;
 
-    if (bookData[bookKey] && bookData[bookKey].details) {
-      const title = bookData[bookKey].details.title;
-      const coverImageUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+  try {
+    console.log(`Workspaceing book details for ISBN ${isbn} from: ${googleBooksApiUrl}`); // Log the URL being hit
+    const response = await axios.get(googleBooksApiUrl);
+    const bookData = response.data;
+
+    if (bookData.totalItems > 0 && bookData.items && bookData.items.length > 0) {
+      const volumeInfo = bookData.items[0].volumeInfo;
+
+      const title = volumeInfo.title;
+      let coverImageUrl = null;
+
+      if (volumeInfo.imageLinks) {
+        // Prefer thumbnail, then smallThumbnail
+        coverImageUrl = volumeInfo.imageLinks.thumbnail || volumeInfo.imageLinks.smallThumbnail || null;
+      }
+
+      // Fallback placeholder if Google doesn't provide an image
+      if (!coverImageUrl) {
+        coverImageUrl = `https://via.placeholder.com/128x192.png?text=No+Cover+Available`;
+        console.log(`No cover image found from Google Books for ISBN ${isbn}. Using placeholder.`);
+      }
+
+      console.log(`Found book for ISBN ${isbn}: Title - ${title}`);
       res.json({ title, coverImageUrl });
+
     } else {
-      res.status(404).json({ error: 'Book details not found' });
+      console.log(`Book details not found for ISBN: ${isbn} using Google Books API (totalItems: ${bookData.totalItems})`);
+      res.status(404).json({ error: `Book details not found for ISBN: ${isbn} using Google Books API` });
     }
   } catch (error) {
-    console.error('Error fetching book data:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error(`Error fetching book data from Google Books API for ISBN ${isbn}:`, error.message);
+    if (error.response) {
+        console.error('Google Books API Error Response Status:', error.response.status);
+        console.error('Google Books API Error Response Data:', error.response.data);
+    } else if (error.request) {
+        console.error('Google Books API No Response Received:', error.request);
+    } else {
+        console.error('Error setting up Google Books API request:', error.message);
+    }
+    res.status(500).json({ error: 'Internal Server Error while fetching book data' });
   }
 });
+
 
 // Add a new student
 // const Student = require('./path-to-your-Student-model'); // Make sure Student model is imported
@@ -307,40 +336,56 @@ app.delete('/return-book/:studentId', async (req, res) => {
 
 app.put('/add/member', async (req, res) => {
   try {
-    // Destructure studentId from the request body
+    // Destructure data from the request body
     const { stud_id, name, parentPhone, age, grade, section } = req.body;
 
-    // Updated validation to include studentId
+    // Input validation: Check for all required fields
     if (!stud_id || !name || !parentPhone || !age || !grade || !section) {
       return res.status(400).json({ message: 'All fields are required, including stud_id' });
     }
 
-    // Optional: Check if a member with this studentId already exists if it should be unique
-    // const existingMember = await Members.findOne({ studentId });
-    // if (existingMember) {
-    //   return res.status(409).json({ message: 'Member with this Student ID already exists' });
-    // }
+    // Convert grade to a Number for level calculation
+    const gradeNumber = Number(grade);
 
+    // Determine the level based on the grade.  Use a more robust mapping.
+    let level = '';
+    if (gradeNumber >= 1 && gradeNumber <= 5) {
+      level = 'Primary';
+    } else if (gradeNumber >= 6 && gradeNumber <= 8) {
+      level = 'Secondary';
+    } else if (gradeNumber >= 9 && gradeNumber <= 12) {
+      level = 'High School';
+    }
+
+    const initialScore = 10;
+
+    // Create a new member instance
     const member = new Members({
-      stud_id, // Include studentId when creating the new member
+      stud_id,
       name,
       parentPhone,
       age,
       grade,
+      level, // Set the level
+      score: initialScore, // Set the initial score
       section,
     });
 
+    // Save the member to the database
     await member.save();
+
+    // Respond with success message and the newly created member data
     res.status(200).json({ message: 'Member added successfully', member });
-  } catch (err) {
-    console.error('Error adding member:', err);
-    // Provide more specific error messages if possible
-    if (err.code === 11000) { // MongoDB duplicate key error
-        return res.status(409).json({ message: "A member with this student ID or other unique field already exists." });
+  } catch (error) {
+    // Handle errors during the member creation process
+    console.error('Error adding member:', error);
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'Member with this Student ID already exists' });
     }
-    res.status(500).json({ message: "Couldn't add member to db" });
+    res.status(500).json({ message: "Couldn't add member to database", error: error.message }); // Include the error message for debugging
   }
 });
+
 
 app.get('/get-members', async(req,res) => {
   try {

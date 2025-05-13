@@ -48,7 +48,7 @@ const Menuitems = [
     id: uniqueId(),
     title: "Add Student",
     icon: IconSquareRoundedPlusFilled,
-    href: "/utilities/add-student",
+    href: "/shelf-add",
   },
   {
     id: uniqueId(),

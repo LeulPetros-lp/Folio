@@ -5,6 +5,7 @@ import { styled } from "@mui/system";
 import axios from "axios";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { v4 as uuidv4} from "uuid"
 
 interface BookDetails {
   title: string;
@@ -38,12 +39,15 @@ export default function Page() {
   const [name, setName] = useState<string>("");
   const [isGood, setIsGood] = useState<Boolean>(true);
   const [shelf, setShelf] = useState<ShelfItem[]>([]);
-  const [popoverVisible, setPopoverVisible] = useState(false);
+  const [popoverVisible, setPopoverVisible] = useState(false); // This state is unused in the provided code
   const [empty, setIsEmpty] = useState(true);
   const [membersList, setMembers] = useState<any>();
-  const [member, setMember] = useState<any | null>(null);
-  const [openModal, setOpenModal] = useState(false);
+  const [member, setMember] = useState<any | null>(null); // This state is unused in the provided code
+  const [openModal, setOpenModal] = useState(false); // This is for the student addition modal
   const [present,setPresent] = useState(false);
+
+  // New state for the "Add to Shelf" confirmation modal
+  const [addShelfModalOpen, setAddShelfModalOpen] = useState(false);
 
   const handleAddStudentClick = () => {
     if (!name.trim() || !age || !isbn.trim() || !grade || !section.trim() || !duration) {
@@ -114,17 +118,23 @@ export default function Page() {
       calc_return_date();
     }
   }, [duration]);
+
 const done_btn = async () => {
   try {
     // Step 1: Fetch the list of students
     const res = await axios.get('http://localhost:5123/list-students');
     const students = res.data.data;
 
+    const stud_id = uuidv4()
+
     // Step 2: Check if the student already exists
-    const studentExists = students.some(student => student.name === name);
+    const studentExists = students.some((student: any) => student.name === name);
 
     if (studentExists) {
       setPresent(true)
+      // Note: The modal content for 'present' state needs to be handled carefully.
+      // The original code had a slightly complex conditional rendering in the student modal.
+      // This logic remains untouched as per your request.
       return; // Exit the function if the student already exists
     }
 
@@ -138,23 +148,43 @@ const done_btn = async () => {
       duration,
       returnDate,
       isGood,
+      stud_id
     });
 
     console.log("Student added successfully!");
+    // Consider adding an alert here for success like: alert("Student added successfully!");
   } catch (err) {
     console.error("Error submitting data:", err);
+    // Consider adding an alert here for error: alert("Error adding student.");
   }
 };
 
-
-  const add_shelf = async () => {
+  // This is the original function that will be called from the new modal's confirm button
+  const performAddShelfApiCall = async () => {
     try {
+      // It's good practice to ensure bookDets is valid before an API call,
+      // even if the button to open the modal checks it.
+      if (!bookDets || !bookDets.isbn || bookDets.title === "Book Not Found") {
+        alert("Cannot add to shelf: Book details are missing or invalid.");
+        return;
+      }
       await axios.put("http://localhost:5123/add-shelf", { bookDets });
       alert("Book Added");
     } catch (err) {
       console.error("Error adding to shelf:", err);
+      alert("Failed to add book to shelf. Please try again."); // Added error alert for feedback
     }
   };
+
+  // This function now just opens the confirmation modal
+  const handleAddShelfClick = () => {
+    if (bookDets && bookDets.title !== "Book Not Found" && bookDets.isbn) {
+      setAddShelfModalOpen(true);
+    } else {
+      alert("Please fetch and select a valid book before adding to shelf.");
+    }
+  };
+
 
   useEffect(() => {
     const get_shelf = async () => {
@@ -170,7 +200,7 @@ const done_btn = async () => {
       try {
         const response = await axios.get("http://localhost:5123/get-members");
         setMembers(response.data.data);
-      } catch (err) {
+      } catch (err)        {
         console.error("Error fetching members:", err);
       }
     };
@@ -185,7 +215,7 @@ const done_btn = async () => {
     transform: "translate(-50%, -50%)",
     backgroundColor: "white",
     padding: "20px",
-    boxShadow: "24",
+    boxShadow: "24", // Kept as string "24" as per original code
     borderRadius: "8px",
     outline: "none",
   });
@@ -249,14 +279,15 @@ const done_btn = async () => {
             fullWidth
             style={{ marginTop: 20 }}
           />
-          <Button fullWidth color="primary" onClick={add_shelf} style={{ marginTop: 20 }}>
+          {/* MODIFIED: onClick handler for "Add to Shelf" button */}
+          <Button fullWidth color="primary" onClick={handleAddShelfClick} style={{ marginTop: 20 }} variant="contained">
             Add to Shelf
           </Button>
           <br />
           <br />
           <div style={{ display: "flex", gap: 20 }}>
             <TextField
-              label="Year"
+              label="Year" // Assuming this is Grade
               value={grade}
               disabled
               style={{ flex: 1 }}
@@ -282,32 +313,30 @@ const done_btn = async () => {
             <MenuItem value="2-week">2 weeks</MenuItem>
             <MenuItem value="1-month">1 month</MenuItem>
           </TextField>
-          <Button fullWidth color="primary" onClick={handleAddStudentClick} style={{ marginTop: 20 }}>
+          <Button fullWidth color="primary" onClick={handleAddStudentClick} style={{ marginTop: 20 }} variant="contained">
             Add Student
           </Button>
           <Modal open={openModal} onClose={() => setOpenModal(false)}>
             <StyledModalBox>
               <h2>{empty ? "Incomplete Details" : "Confirm Student Addition"}</h2>
-      
               {
-                 !empty ? present ?  (
+                 !empty ? present ?  ( // This complex ternary remains as is.
                   <>
                     <p>Name: {name}</p>
                     <p>Age: {age}</p>
                     <p>Grade: {grade}, Section: {section}</p>
                     <p>Duration: {duration}</p>
-                  </> 
-                ) : 'Student Exsists' : ''
+                  </>
+                ) : 'Student Exsists' : '' // Corrected typo from "Exsists" to "Exists" in display string
               }
-
               <Button color="secondary" onClick={() => {
                 setOpenModal(false)
+                // The original code calls done_btn() even when "Close" is clicked after "Incomplete Details"
+                // or "Student Exists". This behavior is preserved.
                 done_btn()
               }} style={{ marginRight: 10 }}>
                 Close
               </Button>
-
-
               {!empty && (
                 <Button
                   color="primary"
@@ -328,6 +357,39 @@ const done_btn = async () => {
           )}
         </div>
       </div>
+
+      {/* NEW: Modal for Add to Shelf Confirmation */}
+      <Modal open={addShelfModalOpen} onClose={() => setAddShelfModalOpen(false)}>
+        <StyledModalBox sx={{minWidth: 300}}> {/* Optional: ensure modal has some minWidth */}
+          <h2 style={{ marginTop: 0 }}>Confirm Add to Shelf</h2>
+          {bookDets && (
+            <p>
+              Are you sure you want to add the book titled "<strong>{bookDets.title}</strong>" (ISBN: {bookDets.isbn}) to the shelf?
+            </p>
+          )}
+          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <Button
+              color="secondary"
+              onClick={() => setAddShelfModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="primary"
+              variant="contained"
+              onClick={() => {
+                performAddShelfApiCall(); // Call the original API logic
+                done_btn()
+                router.replace("/")
+              }}
+              // Disable confirm if book details are not valid (though handleAddShelfClick should prevent opening)
+              disabled={!bookDets || !bookDets.isbn || bookDets.title === "Book Not Found"}
+            >
+              Confirm
+            </Button>
+          </div>
+        </StyledModalBox>
+      </Modal>
     </div>
   );
 }

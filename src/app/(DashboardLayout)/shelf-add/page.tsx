@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { TextField, Button, Autocomplete, Modal, Box, MenuItem } from "@mui/material";
+import { TextField, Button, Autocomplete, Modal, Box, MenuItem, Typography } from "@mui/material";
 import { styled } from "@mui/system";
 import axios from "axios";
 import { useRouter } from "next/navigation";
@@ -126,61 +126,68 @@ export default function Page() {
       };
       calc_return_date();
     } else {
-        setReturnDate(null);
+      setReturnDate(null);
     }
   }, [duration]);
 
   const done_btn = async () => {
-    if (!isGood) {
-        console.error("Attempted to submit with invalid or incomplete data based on frontend check.");
-        return;
+    if (!isGood) { // isGood is the frontend validation flag
+      console.error("Attempted to submit with invalid or incomplete data based on frontend check.");
+      // Optionally provide user feedback here e.g. alert("Please ensure all fields are correctly filled.");
+      setOpenModal(false); // Close modal even on error to avoid getting stuck
+      return;
     }
 
-    // Construct the payload with keys matching backend expectations
+    // The payload structure is ALREADY flat, which the modified backend can handle.
+    // The backend will take these top-level fields and construct the nested 'member' object.
     const payload = {
-      name: name,
-      age: age,
-      grade: String(grade), // Ensure grade is sent as a string if schema expects string
-      section: section,
-      duration: duration,
-      returnDate: returnDate,   // Object {day, month, year}
-      bookDets: bookDets,       // Object {title, isbn, coverImageUrl}, key is 'bookDets'
-      isGood: isGood,           // Boolean, required by schema & backend
-      stud_id: selectedStudId   // String, required by schema & backend
+      name: name, // Will be used for studentData.member.name by the backend
+      age: age,   // Will be used for studentData.member.age by the backend
+      grade: String(grade), // Will be used for studentData.member.grade by the backend
+      section: section,     // Will be used for studentData.member.section by the backend
+      stud_id: selectedStudId, // Will be used for studentData.member.stud_id AND studentData.stud_id (top-level) by the backend
+
+      bookDets: bookDets, // For studentData.book
+      duration: duration, // For studentData.duration
+      returnDate: returnDate, // For studentData.returnDate
+      isGood: isGood,         // For studentData.isGood
     };
 
-    console.log("Attempting to send this payload to /add-student:", JSON.stringify(payload, null, 2));
+    console.log("Frontend: Attempting to send this payload to /add-student:", JSON.stringify(payload, null, 2));
 
     try {
-      await axios.post("http://localhost:5123/add-student", payload);
+      // The endpoint URL remains the same
+      const response = await axios.post("http://localhost:5123/add-student", payload);
 
-      console.log("Student borrowing record added successfully!");
+      console.log("Frontend: Student borrowing record added successfully!", response.data);
       setOpenModal(false);
-      // Reset form fields
+      // Reset form fields (current reset logic is fine)
       setName("");
       setAge("");
       setGrade("");
       setSection("");
       setSelectedStudId("");
-      setIsbn("");
+      setIsbn(""); // This clears the Autocomplete for book selection
       setBookDetails(null);
       setDuration(null);
       setReturnDate(null);
-      setIsGood(false);
+      setIsGood(false); // Reset frontend validation flag
 
-      router.replace("/");
+      router.replace("/"); // Or navigate to a success page or relevant dashboard
     } catch (err_db) {
-      console.error("Error submitting data:", err_db);
+      console.error("Frontend: Error submitting data:", err_db);
       if (axios.isAxiosError(err_db) && err_db.response) {
-        console.error("Backend response data:", err_db.response.data);
-        console.error("Backend response status:", err_db.response.status);
-        // Optionally, set an error message state here to display in the modal
-        // For example: alert(`Error: ${err_db.response.data.message || 'Submission failed'}`);
+        console.error("Frontend: Backend response data:", err_db.response.data);
+        console.error("Frontend: Backend response status:", err_db.response.status);
+        // More user-friendly error display
+        alert(`Error: ${err_db.response.data.message || 'Submission failed. Check console for details.'} ${err_db.response.data.errors ? JSON.stringify(err_db.response.data.errors) : ''}`);
       } else {
-        // alert('An unexpected error occurred.');
+        alert('An unexpected error occurred. Check console for details.');
       }
+      // setOpenModal(false); // Optionally close modal on error or keep it open for user to see context
     }
   };
+
 
   useEffect(() => {
     const get_shelf = async () => {
@@ -208,8 +215,8 @@ export default function Page() {
 
   const getBook = () => {
     if (!isbn) { // isbn state holds the BookName from Autocomplete selection
-        setBookDetails(null);
-        return;
+      setBookDetails(null);
+      return;
     }
     const selectedBook = shelf.find((item) => item.BookName === isbn);
     if (selectedBook) {
@@ -227,17 +234,21 @@ export default function Page() {
     }
   };
 
-   useEffect(() => {
+  useEffect(() => {
     if (isbn && shelf.length > 0) {
-        getBook();
+      getBook();
     } else if (!isbn) {
-        setBookDetails(null);
+      setBookDetails(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isbn, shelf]); // getBook depends on shelf data as well
 
   return (
-    <div className="p-12">
+    <div className="p-15">
+      <Typography variant="h4" fontWeight="bold" gutterBottom textAlign='center'>
+        "What you see and what you hear depends a great deal on where you are standing"<br></br>
+        C.S. Lewis
+      </Typography>
       <div style={{ display: "flex", alignItems: "center", gap: 100, padding: 30 }}>
         <Image
           width={400}
@@ -297,7 +308,7 @@ export default function Page() {
               renderInput={(params) => <TextField {...params} label="Select Book" />}
               fullWidth
             />
-            <Button onClick={getBook} size="small" sx={{height: "56px"}}>Get Book</Button>
+            <Button onClick={getBook} size="small" sx={{ height: "56px" }}>GET</Button>
           </div>
 
           <TextField
@@ -344,7 +355,7 @@ export default function Page() {
               <p>Grade: {grade}, Section: {section}</p>
               <p>Book: {bookDets?.title} (ISBN: {bookDets?.isbn || "N/A"})</p>
               {returnDate && (
-                 <p>Return Date: {returnDate.day}/{returnDate.month}/{returnDate.year}</p>
+                <p>Return Date: {returnDate.day}/{returnDate.month}/{returnDate.year}</p>
               )}
               <div style={{ marginTop: "15px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
                 <Button onClick={() => setOpenModal(false)} color="secondary">Cancel</Button>
@@ -359,7 +370,7 @@ export default function Page() {
               <p>Please fill in all required fields and ensure member and book are correctly selected.</p>
               <div style={{ marginTop: "15px", textAlign: "right" }}>
                 <Button onClick={() => setOpenModal(false)} color="primary" variant="contained">
-                    OK
+                  OK
                 </Button>
               </div>
             </>

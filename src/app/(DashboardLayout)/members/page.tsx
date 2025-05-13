@@ -20,6 +20,7 @@ import {
   Snackbar,
   AlertColor,
   Tooltip,
+  TextField, // Added TextField
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 
@@ -36,13 +37,12 @@ interface Member {
 
 // Interface for Student Borrow Records from /list-students
 interface StudentBorrowRecord {
-  _id: string | number; // The StudentBorrowRecord document's own _id
-  memberId: string | number; // <<<< THIS FIELD LINKS TO Member._id
-  name: string;         // Name of the student (might be same as member name)
+  _id: string | number;
+  memberId: string | number;
+  name: string;
   book: string;
   isGood: boolean;
-  returnDate: string;   // Or Date
-  // Add other fields from DataSchema.js relevant to identifying an active borrow
+  returnDate: string;
 }
 
 const modalStyle = {
@@ -67,6 +67,7 @@ function MembersPreviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>(''); // New state for search
 
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
@@ -81,21 +82,24 @@ function MembersPreviewPage() {
       try {
         const [membersResponse, studentBorrowsResponse] = await Promise.all([
           axios.get('http://localhost:5123/get-members'),
-          axios.get('http://localhost:5123/list-students') // This should list StudentBorrowRecords
+          axios.get('http://localhost:5123/list-students')
         ]);
 
         const membersData = membersResponse.data.data || membersResponse.data.members || membersResponse.data || [];
-        if (Array.isArray(membersData)) setMembers(membersData);
+        if (Array.isArray(membersData)) {
+          // Ensure 'id' for React key is present, using stud_id as fallback if necessary
+          const processedMembers = membersData.map(m => ({ ...m, id: m.id || m.stud_id }));
+          setMembers(processedMembers);
+        }
         else { console.error("Fetched members data not an array:", membersData); setMembers([]); }
 
-        // Ensure /list-students returns data that includes the memberId linking field
         const studentBorrowsData = studentBorrowsResponse.data.data || studentBorrowsResponse.data.students || studentBorrowsResponse.data || [];
         if (Array.isArray(studentBorrowsData)) {
-            setStudentBorrowRecords(studentBorrowsData);
-            console.log("Fetched Student Borrow Records (first 3):", JSON.stringify(studentBorrowsData.slice(0,3), null, 2));
+          setStudentBorrowRecords(studentBorrowsData);
+          // console.log("Fetched Student Borrow Records (first 3):", JSON.stringify(studentBorrowsData.slice(0,3), null, 2));
         } else {
-            console.error("Fetched student borrow data not an array:", studentBorrowsData);
-            setStudentBorrowRecords([]);
+          console.error("Fetched student borrow data not an array:", studentBorrowsData);
+          setStudentBorrowRecords([]);
         }
 
       } catch (err: any) {
@@ -122,28 +126,25 @@ function MembersPreviewPage() {
   };
 
   const canMemberBeRevoked = (member_Id_to_check: string | number): boolean => {
-    console.log(`[canMemberBeRevoked] Checking for memberId: ${member_Id_to_check}`);
+    // console.log(`[canMemberBeRevoked] Checking for memberId: ${member_Id_to_check}`);
     if (loading) {
-        console.log("[canMemberBeRevoked] Initial data still loading. Defaulting to disable revoke.");
-        return false; // Cannot revoke (button disabled)
+      // console.log("[canMemberBeRevoked] Initial data still loading. Defaulting to disable revoke.");
+      return false;
     }
     if (!studentBorrowRecords || studentBorrowRecords.length === 0) {
-      console.log("[canMemberBeRevoked] No student borrow records available. Member IS revokable.");
-      return true; // No borrow records, so member is revokable
+      // console.log("[canMemberBeRevoked] No student borrow records available. Member IS revokable.");
+      return true;
     }
-
-    // Check if any student borrow record is linked to this member.
-    // This assumes 'record.memberId' now exists in your StudentBorrowRecord interface and data.
     const hasLinkedBorrowRecord = studentBorrowRecords.some(
       (record) => String(record.memberId) === String(member_Id_to_check)
     );
 
     if (hasLinkedBorrowRecord) {
-      console.log(`[canMemberBeRevoked] Active borrow record FOUND for memberId: ${member_Id_to_check} via linking field. Member is NOT revokable.`);
-      return false; // Member has a linked borrow record, so NOT revokable
+      // console.log(`[canMemberBeRevoked] Active borrow record FOUND for memberId: ${member_Id_to_check}. Member is NOT revokable.`);
+      return false;
     } else {
-      console.log(`[canMemberBeRevoked] No active borrow record found for memberId: ${member_Id_to_check} via linking field. Member IS revokable.`);
-      return true; // No linked borrow record found, so IS revokable
+      // console.log(`[canMemberBeRevoked] No active borrow record found for memberId: ${member_Id_to_check}. Member IS revokable.`);
+      return true;
     }
   };
 
@@ -155,30 +156,26 @@ function MembersPreviewPage() {
       return;
     }
 
-    // Frontend check before calling API
     if (!canMemberBeRevoked(selectedMember.stud_id)) {
-        setSnackbarMessage("This member has an active borrowing record and cannot be revoked now.");
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-        return;
+      setSnackbarMessage("This member has an active borrowing record and cannot be revoked now.");
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      return;
     }
-
-    
 
     try {
       const response = await axios.delete(`http://localhost:5123/revoke-member/${selectedMember.stud_id}`);
       if (response.status === 200) {
-        if (response.data.err) { // Backend blocked the deletion
-            setSnackbarMessage(`Could not revoke: ${response.data.err}`);
-            setSnackbarSeverity('warning'); // Or 'error' if preferred for a failed action
-        } else { // Deletion was successful on the backend
-            setSnackbarMessage(response.data.message || 'Member revoked successfully!');
-            setSnackbarSeverity('success');
-            setMembers(prevMembers => prevMembers.filter(m => m.stud_id !== selectedMember!.stud_id));
-            handleCloseModal();
+        if (response.data.err) {
+          setSnackbarMessage(`Could not revoke: ${response.data.err}`);
+          setSnackbarSeverity('warning');
+        } else {
+          setSnackbarMessage(response.data.message || 'Member revoked successfully!');
+          setSnackbarSeverity('success');
+          setMembers(prevMembers => prevMembers.filter(m => m.stud_id !== selectedMember!.stud_id));
+          handleCloseModal();
         }
       } else {
-        // Should be caught by catch block if non-2xx
         const errorMessage = response.data.message || `Failed to revoke member. Status: ${response.status}`;
         setSnackbarMessage(errorMessage);
         setSnackbarSeverity('error');
@@ -188,9 +185,9 @@ function MembersPreviewPage() {
       let userMessage = 'An unexpected error occurred while trying to revoke member.';
       if (apiError.response) {
         userMessage = apiError.response.data.message || apiError.response.data.error || `Server error: ${apiError.response.status}`;
-        if (apiError.response.status === 404) { // Member not found in Members collection for deletion
+        if (apiError.response.status === 404) {
           userMessage = apiError.response.data.message || 'Member not found on the server for revocation.';
-          setMembers(prevMembers => prevMembers.filter(m => m.stud_id !== selectedMember!.stud_id)); // Remove from UI if confirmed not found
+          setMembers(prevMembers => prevMembers.filter(m => m.stud_id !== selectedMember!.stud_id));
           handleCloseModal();
         }
       } else if (apiError.request) {
@@ -209,20 +206,29 @@ function MembersPreviewPage() {
     setSnackbarOpen(false);
   };
 
-  // ... (rest of your JSX: loading, error, main page structure, cards, modal, snackbar)
-  // The JSX structure from the previous "full final code" for the frontend can be used here.
-  // Ensure the Revoke Button's disabled prop correctly uses `!canMemberBeRevoked(selectedMember._id)`
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value);
+  };
 
-  if (loading) {
+  const filteredMembers = members.filter(member =>
+    member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(member.stud_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(member.grade).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.section.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Main loader for the whole page
+  if (loading && members.length === 0 && studentBorrowRecords.length === 0) { // Adjusted condition to only show full page loader on initial load
     return (
       <Container sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', fontFamily: 'Poppins, sans-serif' }}>
         <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading members...</Typography>
+        <Typography variant="h6" sx={{ mt: 2 }}>Loading page data...</Typography>
       </Container>
     );
   }
 
-  if (error && !loading) {
+  // Main error display for the whole page
+  if (error && !loading && members.length === 0) { // Adjusted condition
     return (
       <Container sx={{ py: 5, fontFamily: 'Poppins, sans-serif' }}>
         <Alert severity="error" variant="filled">{error}</Alert>
@@ -233,42 +239,81 @@ function MembersPreviewPage() {
   return (
     <Box sx={{ fontFamily: 'Poppins, sans-serif', py: 3, minHeight: '100vh' }}>
       <Container maxWidth="lg">
-        <Typography variant="h4" component="h1" gutterBottom sx={{ textAlign: 'center', color: '#2c3e50', mb: 4, fontWeight: 600 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ textAlign: 'center', color: '#2c3e50', mb: 2, fontWeight: 600 }}>
           Members Dashboard
         </Typography>
-        <Button
-          sx={{ mt: 2, mb: 4, display: 'block', mx: 'auto', px:4, py: 1 }}
-          variant="contained"
-          color="primary"
-          onClick={() => router.push("/members/registration")}
-          fullWidth
-        >
-          Register New Member
-        </Button>
 
-        {members.length === 0 ? (
-          <p style={{ fontFamily: 'Poppins, sans-serif'}}>No members Registered</p>
-          // <Alert severity="info" sx={{ mt: 2 }} variant="outlined">No members found.</Alert>
-        ) : (
-          <Stack spacing={2.5}>
-            {members.map((member) => (
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-around', gap:3 }}>
+          <TextField
+            label="Search Members (by Name, ID, Grade, Section)"
+            variant="outlined"
+            fullWidth
+            value={searchTerm}
+            onChange={handleSearchChange}
+            sx={{ maxWidth: '800px' }} // Adjusted width
+
+          />
+
+          <Button
+            sx={{ mb: 4, display: 'block', mx: 'auto', px: 4, py: 1.5 }} // Slightly larger button
+            variant="contained"
+            color="primary"
+            onClick={() => router.push("/members/registration")}
+          >
+            Register New Member
+          </Button>
+        </Box>
+
+
+
+        {/* Conditional rendering for loading/error specific to member list if needed, else rely on main loader */}
+        {loading && members.length > 0 && ( // Show a subtle loader if members are already partially loaded but a refresh is happening.
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}><CircularProgress size={24} /><Typography sx={{ ml: 1 }}>Refreshing data...</Typography></Box>
+        )}
+
+
+        {!loading && !error && members.length === 0 && ( // No members registered at all
+          <Alert severity="info" sx={{ mt: 4, py: 3, textAlign: 'center' }} variant="outlined">
+            No members are currently registered in the system. <br />
+            Click the "Register New Member" button above to add the first member.
+          </Alert>
+        )}
+
+        {!loading && !error && members.length > 0 && filteredMembers.length === 0 && ( // Members exist, but none match search
+          <Alert severity="info" sx={{ mt: 4, py: 2 }} variant="outlined">
+            No members found matching "{searchTerm}". Try a different search term.
+          </Alert>
+        )}
+
+        {!loading && !error && filteredMembers.length > 0 && (
+          <Stack spacing={2.5} sx={{ mt: 2 }}>
+            {filteredMembers.map((member) => (
               <Card
-                key={member.id}
+                key={member.id || member.stud_id} // Ensure key is unique
                 sx={{
                   transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                   '&:hover': { transform: 'translateY(-4px)', boxShadow: (theme) => theme.shadows[8] },
+                  borderRadius: '8px' // Slightly more rounded cards
                 }}
               >
                 <CardActionArea onClick={() => handleCardClick(member)} component="div">
-                  <CardContent sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2, p: {xs: 2, md: 3} }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'flex-start', sm: { alignItems: 'center' }, gap: 2, p: { xs: 2, md: 3 } }}>
                     <Box flexGrow={1}>
                       <Typography variant="h6" component="h2" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
                         {member.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Age: {member.age} | Grade: {member.grade} | Section: {member.section}
+                        ID: {member.stud_id} | Age: {member.age} | Grade: {member.grade} | Section: {member.section}
                       </Typography>
                     </Box>
+                    {/* Optionally, show an indicator if member cannot be revoked */}
+                    {!canMemberBeRevoked(member.stud_id) && (
+                      <Tooltip title="This member has an active borrow record.">
+                        <Typography variant="caption" sx={{ color: 'orange.main', alignSelf: 'center', ml: { sm: 'auto' } }}>
+                          Active Borrow
+                        </Typography>
+                      </Tooltip>
+                    )}
                   </CardContent>
                 </CardActionArea>
               </Card>
@@ -302,15 +347,15 @@ function MembersPreviewPage() {
               </Box>
               <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
                 <Tooltip title={!canMemberBeRevoked(selectedMember.stud_id) ? "Member has an active borrow record and cannot be revoked." : "Revoke this member"}>
-                  <span> {/* Tooltip needs a span wrapper for disabled MUI buttons */}
+                  <span>
                     <Button
                       variant="contained"
                       onClick={handleRevokeMember}
                       disabled={!canMemberBeRevoked(selectedMember.stud_id)}
                       sx={{
                         backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.main',
-                        '&:hover': { 
-                            backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.dark' 
+                        '&:hover': {
+                          backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.dark'
                         },
                       }}
                     >
@@ -331,7 +376,7 @@ function MembersPreviewPage() {
           autoHideDuration={6000}
           onClose={handleSnackbarClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-          key={snackbarMessage + snackbarSeverity}
+          key={snackbarMessage + snackbarSeverity} // Key helps re-render Snackbar if message/severity changes for same open state
         >
           <Alert
             onClose={handleSnackbarClose}

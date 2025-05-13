@@ -50,7 +50,7 @@ export default function App() {
         }}
       >
         {/* Card 1 - ISBN Code */}
-        <Card sx={{ width: 450,  }} component="a" href="/isbn-add">
+        {/* <Card sx={{ width: 450,  }} component="a" href="/isbn-add">
           <CardActionArea>
             <CardContent>
               <Typography variant="subtitle2" color="textSecondary">
@@ -69,7 +69,7 @@ export default function App() {
              
                  />
           </CardActionArea>
-        </Card>
+        </Card> */}
 
         {/* Card 2 - From Book Shelf */}
         <Card sx={{ width: 450 }} component="a" href="/shelf-add">
