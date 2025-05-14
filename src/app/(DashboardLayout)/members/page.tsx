@@ -240,7 +240,7 @@ function MembersPreviewPage() {
     <Box sx={{ fontFamily: 'Poppins, sans-serif', py: 3, minHeight: '100vh' }}>
       <Container maxWidth="lg">
         <Typography variant="h4" component="h1" gutterBottom sx={{ textAlign: 'center', color: '#2c3e50', mb: 2, fontWeight: 600 }}>
-          Members Dashboard
+          Members Dashboard (*{members?.length})
         </Typography>
 
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-around', gap:3 }}>
@@ -306,9 +306,9 @@ function MembersPreviewPage() {
                         ID: {member.stud_id} | Age: {member.age} | Grade: {member.grade} | Section: {member.section}
                       </Typography>
 
-                      <Typography>
+                      {/* <Typography>
                         10
-                      </Typography>
+                      </Typography> */}
                     </Box>
                     {/* Optionally, show an indicator if member cannot be revoked */}
                     {!canMemberBeRevoked(member.stud_id) && (

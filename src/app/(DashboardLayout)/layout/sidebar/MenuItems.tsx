@@ -6,6 +6,7 @@ import {
   IconMoodHappy,
   IconBooks,
   IconChartInfographic,
+  IconBarcode,
   IconSearch,
   IconSquareRoundedPlusFilled,
 } from "@tabler/icons-react";
@@ -41,8 +42,14 @@ const Menuitems = [
     href: "/utilities/BookDB",
   },
   {
+    id: uniqueId(),
+    title: "ISBNDB",
+    icon: IconBarcode,
+    href: "/utilities/isbn-book"
+  },
+  {
     navlabel: true,
-    subheader: "General",
+    subheader: "Management and Statistics ",
   },
   {
     id: uniqueId(),

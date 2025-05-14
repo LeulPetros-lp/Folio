@@ -90,65 +90,73 @@ app.get('/api/book/:isbn', async (req, res) => {
 
 app.post('/add-student', async (req, res) => {
   try {
-    // 1. Destructure and Validate Input (from your existing code)
     const { bookDets, name, age, grade, section, duration, returnDate, isGood, stud_id } = req.body;
 
-    // Robust Validation (from your code - good to keep)
+    // --- Fundamental Field Validation ---
     if (!name || !age || (grade === undefined || grade === "") || !section || !duration || !returnDate || !stud_id || (isGood === undefined)) {
-      console.error("Validation failed. Missing fundamental fields. Received body:", req.body);
-      return res.status(400).json({ message: 'Required fields are missing: name, age, grade, section, duration, returnDate, stud_id, or isGood status.' });
+      console.error("Validation failed (add-student). Missing fundamental student/loan fields. Received body:", req.body);
+      return res.status(400).json({ message: 'Required student/loan fields are missing: name, age, grade, section, duration, returnDate, stud_id, or isGood status.' });
     }
-    if (!bookDets || typeof bookDets !== 'object' || !bookDets.title || !bookDets.isbn) {
-      console.error("Validation failed. Problematic bookDets. Received bookDets:", bookDets);
-      return res.status(400).json({ message: 'Valid book details (including title and ISBN) are required.' });
+
+    // --- Validate the structure of bookDets and existence of the data chunk ---
+    // The frontend now sends bookDets as { data: { /* actual book chunk */ } }
+    if (!bookDets || typeof bookDets !== 'object' || !bookDets.data || typeof bookDets.data !== 'object') {
+      console.error("Validation failed (add-student). 'bookDets' or 'bookDets.data' is missing or not an object. Received bookDets:", JSON.stringify(bookDets, null, 2));
+      return res.status(400).json({ message: 'A valid bookDets object containing a "data" property with full book details is required.' });
     }
+
+    const actualBookDataChunk = bookDets.data; // This is the chunk
+
+    // --- Validate essential fields within the book data chunk ---
+    // Ensure title and at least one ISBN (as an array) are present in the chunk
+    if (!actualBookDataChunk.title || 
+        (!actualBookDataChunk.isbn || !Array.isArray(actualBookDataChunk.isbn) || actualBookDataChunk.isbn.length === 0)) {
+      console.error("Validation failed (add-student). Book title or ISBN array (min 1) is missing in bookDets.data. Received book chunk:", JSON.stringify(actualBookDataChunk, null, 2));
+      return res.status(400).json({ message: 'Book details chunk (bookDets.data) must include a title and an array with at least one ISBN.' });
+    }
+    
+    // --- Validate returnDate structure ---
     if (!returnDate || typeof returnDate !== 'object' || !returnDate.year || !returnDate.month || !returnDate.day) {
-        console.error("Validation failed. Problematic returnDate. Received returnDate:", returnDate);
+        console.error("Validation failed (add-student). Problematic returnDate. Received returnDate:", returnDate);
         return res.status(400).json({ message: 'Valid return date object (including year, month, day) is required.' });
     }
 
-    // ISBN normalization (optional but good practice for storage consistency)
-    const normalizedIsbn = bookDets.isbn.replace(/-/g, "").toUpperCase();
-
-    // 2. Modified Clone Check for Student Borrowing Record
+    // --- Clone Check for Student Borrowing Record ---
     // Checks if this stud_id already has ANY active borrowing record.
-    // This assumes a record in the 'Student' collection means an active/current loan.
-    const existingLoan = await Student.findOne({
-      stud_id: stud_id
-      // We no longer check 'book.isbn' here
-    });
+    const existingLoan = await Student.findOne({ stud_id: stud_id });
 
     if (existingLoan) {
       // If a record is found, it means this student already has a book borrowed.
+      // Display first ISBN from the array if available for the message
+      const displayIsbn = (existingLoan.book && existingLoan.book.isbn && Array.isArray(existingLoan.book.isbn) && existingLoan.book.isbn.length > 0)
+                          ? existingLoan.book.isbn[0]
+                          : 'N/A';
       return res.status(409).json({ // 409 Conflict
-        message: `This student (ID: ${stud_id}) already has an active book borrowed (Book: ${existingLoan.book.title}, ISBN: ${existingLoan.book.isbn}). A student can only borrow one book at a time.`,
+        message: `This student (ID: ${stud_id}) already has an active book borrowed (Book: ${existingLoan.book.title}, ISBN: ${displayIsbn}). A student can only borrow one book at a time.`,
         existingLoanDetails: {
           studentId: existingLoan.stud_id,
           bookTitle: existingLoan.book.title,
-          bookIsbn: existingLoan.book.isbn, // Send back the actual ISBN of the currently borrowed book
+          bookIsbn: displayIsbn,
           returnDate: existingLoan.returnDate
         }
       });
     }
 
-    // 3. Data Preparation for Mongoose Model (using normalized ISBN)
+    // --- Data Preparation for Mongoose Model ---
+    // The 'actualBookDataChunk' is assigned directly to studentData.book
     const studentData = {
       name: name.trim(),
       age: Number(age),
-      grade: String(grade), // Or Number(grade) based on schema
+      grade: String(grade),
       section: section.trim(),
-      book: {
-        title: bookDets.title,
-        isbn: normalizedIsbn, // Store normalized ISBN
-        coverImageUrl: bookDets.coverImageUrl || "",
-      },
+      book: actualBookDataChunk, // Assign the entire chunk here
       duration,
       isGood,
-      returnDate: new Date(returnDate.year, returnDate.month - 1, returnDate.day),
+      returnDate: new Date(returnDate.year, returnDate.month - 1, returnDate.day), // JS month is 0-indexed
       stud_id,
     };
 
-    const student = new Student(studentData);
+    const student = new Student(studentData); // StudentSchema.book now expects StudentBookDataChunkSchema
     await student.save();
 
     res.status(200).json({ message: 'Student borrowing record added successfully', student });
@@ -156,11 +164,11 @@ app.post('/add-student', async (req, res) => {
   } catch (err) {
     console.error('Error in /add-student route:', err);
     if (err.name === 'ValidationError') {
-      return res.status(400).json({ message: "Validation Error from Schema", errors: err.errors });
+      // Log the detailed validation errors
+      console.error('Mongoose Validation Errors (add-student):', JSON.stringify(err.errors, null, 2));
+      return res.status(400).json({ message: "Validation Error from Schema. Please check data format.", errors: err.errors });
     }
-    // This can catch unique index violations if you have a unique index on stud_id
-    // at the database level for the Student collection.
-    if (err.code === 11000) {
+    if (err.code === 11000) { // MongoDB unique constraint violation
         return res.status(409).json({ message: 'This student borrowing record might violate a unique constraint (e.g., stud_id already exists for an active loan).', errorDetails: err.keyValue });
     }
     if (!res.headersSent) {
@@ -170,86 +178,68 @@ app.post('/add-student', async (req, res) => {
 });
 
 
+
 // Add a book to the shelf
 app.put('/add-shelf', async (req, res) => {
   try {
-    const { bookDets } = req.body;
+    const { bookDets } = req.body; // bookDets is the 'selectedBook' object from your frontend
 
-    // --- Input Validation ---
-    if (!bookDets || typeof bookDets !== 'object') {
-      return res.status(400).json({ message: 'bookDets object is required.' });
+    console.log('Received PUT /add-shelf (to store as chunk) with bookDets:', JSON.stringify(bookDets, null, 2));
+
+    // --- Basic Validation for the incoming bookDets object ---
+    if (!bookDets || typeof bookDets !== 'object' || Object.keys(bookDets).length === 0) {
+      return res.status(400).json({ message: 'The bookDets object with full book details is required.' });
     }
 
-    const { title, coverImageUrl, isbn, authorName } = bookDets;
-
-    // Validate presence of title and authorName for the clone check
-    if (!title || typeof title !== 'string' || title.trim() === "") {
-      return res.status(400).json({ message: 'Valid BookName (title) is required in bookDets.' });
+    // Ensure the crucial 'key' (for identifierKey) and a 'title' are present in bookDets
+    if (!bookDets.key || typeof bookDets.key !== 'string' || bookDets.key.trim() === "") {
+        return res.status(400).json({ message: 'A valid unique key (bookDets.key) is required to identify the book entry.' });
     }
-    // Make authorName check more flexible: if it's part of clone check, it should be present
-    // If authorName can be optional for some books, this validation needs adjustment.
-    // For this clone check, we'll assume it's expected.
-    if (!authorName || typeof authorName !== 'string' || authorName.trim() === "") {
-      return res.status(400).json({ message: 'Valid AuthorName is required in bookDets for clone checking.' });
-    }
-    if (!isbn || typeof isbn !== 'string') {
-        // ISBN might not be strictly required for the clone check based on title/author,
-        // but it's good for the shelf item itself.
-        console.warn("Warning: ISBN is missing or invalid in bookDets for /add-shelf");
+    if (!bookDets.title || typeof bookDets.title !== 'string' || bookDets.title.trim() === "") {
+      // Even if storing a chunk, a title is fundamental for any minimal identification.
+      return res.status(400).json({ message: 'A valid book title (bookDets.title) is required within the bookDets object.' });
     }
 
+    // --- Prepare data for the new Shelf Item ---
+    const shelfItemData = {
+      identifierKey: bookDets.key.trim(), // Use the unique key from the frontend
+      bookData: { ...bookDets },        // Store the entire received bookDets object as the "chunk"
+      dateAdded: new Date()
+    };
 
-    // --- Normalize data for checking and saving ---
-    const normalizedBookName = title.trim();
-    const normalizedAuthorName = authorName.trim();
-    const normalizedIsbn = isbn ? isbn.replace(/-/g, "").toUpperCase() : "00000000000"; // Default if ISBN is missing/falsy
+    // --- NO Application-Level Content-Based Clone Check ---
+    // Uniqueness is now primarily handled by the `identifierKey` unique index in the Shelf schema.
+    // This prevents the same API entry (e.g., same Google Book ID or Open Library Key) from being added multiple times.
 
-    // --- Clone Check ---
-    // Check if a book with the same normalized BookName and AuthorName already exists.
-    // This query assumes your Shelf schema has fields 'BookName' and 'AuthorName'.
-    const existingBookOnShelf = await Shelf.findOne({
-      BookName: new RegExp(`^${normalizedBookName}$`, 'i'), // Case-insensitive exact match for title
-      AuthorName: new RegExp(`^${normalizedAuthorName}$`, 'i') // Case-insensitive exact match for author
-    });
+    const shelfItem = new Shelf(shelfItemData);
+    await shelfItem.save(); // Mongoose schema validation (e.g., required identifierKey) will run.
 
-    if (existingBookOnShelf) {
-      return res.status(409).json({ // 409 Conflict
-        message: `This book ("${normalizedBookName}" by "${normalizedAuthorName}") already exists on the shelf.`,
-        existingBook: { // Optionally send back some details
-            id: existingBookOnShelf._id,
-            BookName: existingBookOnShelf.BookName,
-            AuthorName: existingBookOnShelf.AuthorName,
-            Isbn: existingBookOnShelf.Isbn
-        }
-      });
-    }
-
-    // --- Create and Save New Shelf Item ---
-    // Ensure your Shelf Schema includes 'AuthorName: String'
-    const shelfItem = new Shelf({
-      BookName: normalizedBookName,
-      AuthorName: normalizedAuthorName, // Save the author's name
-      ImgUrl: coverImageUrl || "https://preview.colorkit.co/color/FF2D55.png?type=article-preview-logo&size=social&colorname=Cherry%20Paddle%20Pop", // Default image
-      Isbn: normalizedIsbn, // Use normalized ISBN
-    }); 
-
-    await shelfItem.save();
-    res.status(200).json({ message: 'Book added to shelf successfully', shelfItem });
+    res.status(201).json({ message: 'Book (as a full chunk) added to shelf successfully', shelfItem });
 
   } catch (err) {
-    console.error('Error adding book to shelf:', err);
+    console.error('Error in PUT /add-shelf (store chunk) endpoint:', err);
+
     if (err.name === 'ValidationError') {
-      return res.status(400).json({ message: "Validation Error from Schema", errors: err.errors });
+      // This would catch if 'identifierKey' or 'bookData' itself is missing, per schema.
+      console.error('Mongoose Validation Errors:', JSON.stringify(err.errors, null, 2));
+      return res.status(400).json({
+        message: "Schema Validation Error. Ensure 'key' and 'title' are present in the book details.",
+        errors: err.errors
+      });
     }
-    if (err.code === 11000) { // If you have unique indexes (e.g., on ISBN or composite of BookName/AuthorName)
-        return res.status(409).json({ message: 'This book might violate a unique constraint (e.g., ISBN already exists).', errorDetails: err.keyValue });
+    if (err.code === 11000) { // MongoDB unique constraint violation (likely on 'identifierKey')
+        return res.status(409).json({ // 409 Conflict
+            message: 'This book (identified by its unique key) already exists on the shelf.',
+            errorDetails: err.keyValue // Shows which field caused the duplicate key error
+        });
     }
-    // Ensure response is only sent if headers haven't been sent by an earlier error
+    // Generic server error
     if (!res.headersSent) {
-      res.status(500).json({ message: "Server error while adding book to shelf." });
+      res.status(500).json({ message: "Server error occurred while attempting to add book to shelf." });
     }
   }
 });
+
 
 
 
@@ -541,6 +531,48 @@ app.delete('/revoke-member/:id', async (req, res) => {
     }
     // Generic server error
     return res.status(400).json({ error: "Can't revoke students membership - student is still on the borrowers list" });
+  }
+});
+
+
+
+app.get('/pre-stats', async (req, res) => {
+  try {
+    // Fetch the total number of students
+    const studentCount = await Student.countDocuments();
+
+    // Fetch the distribution of books by subject using aggregation
+    const bookDistribution = await Book.aggregate([
+      {
+        $group: {
+          _id: '$subject', // Group by subject
+          count: { $sum: 1 }, // Count books for each subject
+        },
+      },
+      {
+        $sort: { count: -1 }, // Sort by count in descending order
+      },
+      {
+        $project: {  // Project the fields to the desired format.  Important for consistent output.
+          subject: '$_id',
+          count: 1,
+          _id: 0
+        }
+      }
+    ]);
+
+    // Combine the results into a single object
+    const responseData = {
+      studentCount,
+      bookDistribution,
+    };
+
+    // Send the combined data as a JSON response
+    res.json(responseData);
+  } catch (error) {
+    // Handle errors during the database queries
+    console.error('Error fetching pre-stats:', error);
+    res.status(500).json({ error: 'Failed to retrieve pre-stats data' });
   }
 });
 

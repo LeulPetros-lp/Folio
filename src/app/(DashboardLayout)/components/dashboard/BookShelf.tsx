@@ -86,7 +86,9 @@ const MonthlyEarnings = () => {
         {/* column 1: Text content */}
         <Grid item xs={7} sm={7}>
           <Typography variant="h3" fontWeight="700" mt="-20px">
-           {shelf?.length}+
+           {
+            shelf?.length
+           }+
           </Typography>
           <Stack direction="row" spacing={1} my={1} alignItems="center">
             <Typography variant="subtitle2" fontWeight="600">

@@ -1,22 +1,28 @@
+// File: ./Schema/DataSchema.js (Your Student Schema)
 const mongoose = require('mongoose');
 
-// Define a sub-schema for the book details
-const BookObjectSchema = new mongoose.Schema({
+// Define a new sub-schema for the detailed book data "chunk"
+// This should align with the structure of ApiShelfBookData from your frontend
+const StudentBookDataChunkSchema = new mongoose.Schema({
+  key: { type: String }, // e.g., "gb-...", "ol-..."
   title: {
     type: String,
-    required: [true, 'Book title is required within the book object'],
+    required: [true, 'Book title is required within the book data'],
   },
-  isbn: {
-    type: String,
-    required: [true, 'Book ISBN is required within the book object'],
-  },
-  coverImageUrl: {
-    type: String,
-    required: false, // Assuming the cover image URL can be optional
-  }
-}, { _id: false }); // _id: false if you don't need a separate ID for the book sub-document
-
-
+  author_name: { type: [String], default: [] },
+  isbn: { type: [String], default: [] }, // Stores an array of ISBNs
+  subject: { type: [String], default: [] },
+  coverImageUrl: { type: String, default: "" },
+  publisher: { type: String },
+  publishedDate: { type: String },
+  description: { type: String },
+  pageCount: { type: Number },
+  sourceApi: { type: String }, // e.g., 'GoogleBooks', 'OpenLibrary'
+  googleBooksId: { type: String },
+  openLibraryKey: { type: String },
+  // Add any other fields from ApiShelfBookData you want to store
+}, { _id: false, strict: false }); // strict: false allows fields not explicitly defined,
+                                   // set to true if you want to enforce the exact schema.
 
 const StudentSchema = new mongoose.Schema({
   name: {
@@ -27,14 +33,12 @@ const StudentSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  book: { // Changed 'book' to store an object
-    type: BookObjectSchema, // Use the sub-schema defined above
-    required: false, // Set to false if a student can be registered without a book initially.
-                     // If a book *must* be assigned, set this to true or handle it in backend route logic.
-                     // Given your previous `required: [false, ...]` for the string book, keeping this optional.
+  book: { // This will now store the entire book data chunk
+    type: StudentBookDataChunkSchema, // Use the new sub-schema defined above
+    required: false, // Set to true if a book is mandatory for every student record
   },
   grade: {
-    type: String,
+    type: String, // Or Number, ensure consistency with frontend/usage
     required: true
   },
   section: {
@@ -49,16 +53,18 @@ const StudentSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  isGood: { // This field was in your schema
+  isGood: {
     type: Boolean,
     required: true
   },
   stud_id: {
     type: String,
     required: true,
+    // Consider adding unique: true if each stud_id should only have one active loan at a time,
+    // though your route logic already checks this.
+    // unique: true,
   }
 }, { timestamps: true });
 
-const Students = mongoose.model('Students', StudentSchema); // Or 'Student' if you prefer singular for model name
-
-module.exports = Students;
+// Ensure the model name 'Student' matches what you use in your route: const Student = require('./Schema/DataSchema');
+module.exports = mongoose.model('Student', StudentSchema);
