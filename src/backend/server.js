@@ -534,6 +534,82 @@ app.delete('/revoke-member/:id', async (req, res) => {
   }
 });
 
+app.get('/get-statistics', async (req, res) => {
+  try {
+    const now = new Date();
+
+    // 1. Total number of student borrowing records
+    const totalStudentsWithBorrows = await Student.countDocuments();
+
+    // 2. Total number of registered library members
+    const totalMembers = await Members.countDocuments();
+
+    // 3. Total number of books on the shelf
+    const totalBooksOnShelf = await Shelf.countDocuments();
+
+    // 4. Distribution of books on the shelf by subject
+    // Assuming Shelf.bookData.subject is an array of strings
+    const shelfBookDistributionBySubject = await Shelf.aggregate([
+      { $match: { "bookData.subject": { $exists: true, $ne: null, $not: {$size: 0} } } }, // Ensure subject array exists and is not empty
+      { $unwind: "$bookData.subject" }, // Unwind the subject array
+      {
+        $group: {
+          _id: { $toLower: "$bookData.subject" }, // Group by subject (case-insensitive for better grouping)
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 }, // Optionally limit to top N subjects for brevity
+      {
+        $project: {
+          subject: "$_id",
+          count: 1,
+          _id: 0
+        }
+      }
+    ]);
+
+    // 5. Number of currently overdue books
+    const overdueBooksCount = await Student.countDocuments({ returnDate: { $lt: now } });
+
+    // 6. Distribution of active borrows by duration
+    const activeBorrowsByDuration = await Student.aggregate([
+      {
+        $group: {
+          _id: "$duration", // Group by the duration field
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      {
+        $project: {
+          duration: "$_id",
+          count: 1,
+          _id: 0
+        }
+      }
+    ]);
+
+    // Combine all statistics into a single response object
+    const statistics = {
+      totalStudentsWithBorrows,
+      totalMembers,
+      totalBooksOnShelf,
+      shelfBookDistributionBySubject,
+      overdueBooksCount,
+      activeBorrowsByDuration,
+      lastUpdated: now.toISOString() // To know when the stats were generated
+    };
+
+    res.status(200).json(statistics);
+
+  } catch (error) {
+    console.error('Error fetching statistics:', error);
+    res.status(500).json({ message: 'Failed to retrieve statistics due to an internal server error.', error: error.message });
+  }
+});
+
+
 
 
 app.get('/pre-stats', async (req, res) => {

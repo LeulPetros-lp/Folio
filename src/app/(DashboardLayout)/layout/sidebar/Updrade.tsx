@@ -12,7 +12,7 @@ export const Upgrade = () => {
             sx={{ m: 3, p: 3, bgcolor: 'primary.light', borderRadius: '8px' }}
         >
             <>
-          
+                <Typography variant='h1'>Date:</Typography>
             </>
         </Box>
     );

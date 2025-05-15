@@ -17,6 +17,7 @@ import PageContainer from "@/app/(DashboardLayout)/components/container/PageCont
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid"; // Correctly imported
 
+
 // import Logo from "@/app/(DashboardLayout)/layout/shared/logo/Logo";
 
 interface MemberFormData {
@@ -125,8 +126,8 @@ export default function Page() {
                 }}
               >
                 <Logo />
-              </Box>
-              */}
+              </Box> */}
+             
 
               <Box textAlign="center" mb={4}>
                 <Typography variant="h4" fontWeight="bold" gutterBottom>

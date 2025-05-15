@@ -31,6 +31,7 @@ const SidebarItems = ({ toggleMobileSidebar }: any) => {
           }
         })}
       </List>
+      
     </Box>
   );
 };

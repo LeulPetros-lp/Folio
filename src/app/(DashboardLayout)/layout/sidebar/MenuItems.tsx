@@ -21,7 +21,7 @@ const Menuitems = [
 
   {
     id: uniqueId(),
-    title: "Dashboard",
+    title: "Management Console",
     icon: IconLayoutDashboard,
     href: "/",
   },
