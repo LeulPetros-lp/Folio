@@ -4,31 +4,27 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'http', // Or 'https' if the URLs are HTTPS
+        protocol: 'https', // Change to https - images are likely served over HTTPS
         hostname: 'books.google.com',
-        port: '', // Usually empty for default ports 80/443
-        pathname: '/books/content/**', // Be as specific or general as needed for the path
+        port: '',
+        pathname: '/books/content/**',
       },
-      // You can add other hostnames here if needed
-      // For example, if you still use Open Library covers sometimes:
-      // {
-      //   protocol: 'https',
-      //   hostname: 'covers.openlibrary.org',
-      //   port: '',
-      //   pathname: '/b/**',
-      // },
-      // And for your placeholder images:
-      // {
-      //   protocol: 'https',
-      //   hostname: 'via.placeholder.com',
-      //   port: '',
-      //   pathname: '/**',
-      // },
+      {
+        protocol: 'https', // Add this entry for Open Library covers
+        hostname: 'covers.openlibrary.org',
+        port: '',
+        pathname: '/b/**', // Check Open Library documentation for the exact path pattern if needed, '/b/**' is common
+      },
+      {
+        protocol: 'https', // Add this entry for your placeholder images
+        hostname: 'via.placeholder.com',
+        port: '',
+        pathname: '/**', // Allows any path on the placeholder domain
+      },
     ],
-
-    domains: ["covers.openlibrary.org"],
+    // Remove the 'domains' array if you are using remotePatterns
+    // domains: ["covers.openlibrary.org"], <-- Remove or comment this out
   },
-
 };
 
 module.exports = nextConfig;

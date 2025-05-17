@@ -9,6 +9,9 @@ import {
   IconBarcode,
   IconSearch,
   IconSquareRoundedPlusFilled,
+  IconChartArrowsVertical,
+  IconMessage,
+  IconMessage2Exclamation
 } from "@tabler/icons-react";
 
 import { uniqueId } from "lodash";
@@ -49,7 +52,7 @@ const Menuitems = [
   },
   {
     navlabel: true,
-    subheader: "Management and Statistics ",
+    subheader: "Member Management ",
   },
   {
     id: uniqueId(),
@@ -59,20 +62,29 @@ const Menuitems = [
   },
   {
     id: uniqueId(),
-    title: "Membership",
+    title: "Members Panel",
     icon: IconBrandMyOppo,
      href: "/members",
   },
   {
-    id: uniqueId(),
-    title: "Statistics",
-    icon: IconChartInfographic,
-    href: "/statistics",
+    navlabel: true, 
+    subheader: "Reports"
   },
   {
-    navlabel: true,
-    subheader: "System info",
+    id: uniqueId(),
+    title: "Reports and Statistics",
+    icon: IconChartInfographic,
+    href: "/statistics",
+  },  {
+    id: uniqueId(),
+    title: "FolioAI",
+    icon: IconMessage,
+    href: "/sample-page",
   },
+  // {
+  //   navlabel: true,
+  //   subheader: "System info",
+  // },
   // {
   //   id: uniqueId(),
   //   title: "Icons",

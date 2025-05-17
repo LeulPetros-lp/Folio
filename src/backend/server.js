@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -537,118 +539,131 @@ app.delete('/revoke-member/:id', async (req, res) => {
 app.get('/get-statistics', async (req, res) => {
   try {
     const now = new Date();
+    console.log(`Workspaceing library statistics at ${now.toISOString()}`);
 
     // 1. Total number of student borrowing records
     const totalStudentsWithBorrows = await Student.countDocuments();
+    console.log(`- totalStudentsWithBorrows: ${totalStudentsWithBorrows}`);
 
     // 2. Total number of registered library members
     const totalMembers = await Members.countDocuments();
+    console.log(`- totalMembers: ${totalMembers}`);
 
     // 3. Total number of books on the shelf
     const totalBooksOnShelf = await Shelf.countDocuments();
+    console.log(`- totalBooksOnShelf: ${totalBooksOnShelf}`);
 
-    // 4. Distribution of books on the shelf by subject
-    // Assuming Shelf.bookData.subject is an array of strings
-    const shelfBookDistributionBySubject = await Shelf.aggregate([
-      { $match: { "bookData.subject": { $exists: true, $ne: null, $not: {$size: 0} } } }, // Ensure subject array exists and is not empty
-      { $unwind: "$bookData.subject" }, // Unwind the subject array
+    // 4a. Distribution of books on the shelf by subject tag
+    const shelfBookDistributionBySubjectTag = await Shelf.aggregate([
+      { $match: { "bookData.subject": { $exists: true, $ne: null, $not: { $size: 0 } } } },
+      { $unwind: "$bookData.subject" },
+      { $project: { subject: { $trim: { input: { $toLower: "$bookData.subject" } } } } },
+      { $match: { subject: { $ne: null, $ne: "" } } },
+      { $group: { _id: "$subject", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 20 },
+      { $project: { subject: "$_id", count: 1, _id: 0 } }
+    ]);
+    console.log(`- shelfBookDistributionBySubjectTag (${shelfBookDistributionBySubjectTag.length}):`, shelfBookDistributionBySubjectTag);
+
+    // 4b. Distribution of books by FIRST subject
+    const shelfBookDistributionByFirstSubject = await Shelf.aggregate([
+      { $match: { "bookData.subject": { $exists: true, $ne: null, $not: { $size: 0 } } } },
+      {
+        $project: {
+          firstSubject: {
+            $let: {
+              vars: { first: { $arrayElemAt: ["$bookData.subject", 0] } },
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$$first", null] },
+                      { $ne: ["$$first", ""] },
+                      { $ne: ["$$first", undefined] }
+                    ]
+                  },
+                  "$$first",
+                  null
+                ]
+              }
+            }
+          }
+        }
+      },
+      { $match: { firstSubject: { $ne: null } } },
       {
         $group: {
-          _id: { $toLower: "$bookData.subject" }, // Group by subject (case-insensitive for better grouping)
+          _id: { $trim: { input: { $toLower: "$firstSubject" } } },
           count: { $sum: 1 }
         }
       },
-      { $sort: { count: -1 } },
-      { $limit: 10 }, // Optionally limit to top N subjects for brevity
-      {
-        $project: {
-          subject: "$_id",
-          count: 1,
-          _id: 0
-        }
-      }
+      { $match: { _id: { $ne: null, $ne: "" } } },
+      { $sort: { count: -1, _id: 1 } },
+      { $limit: 20 },
+      { $project: { subject: "$_id", count: 1, _id: 0 } }
     ]);
+    console.log(`- shelfBookDistributionByFirstSubject (${shelfBookDistributionByFirstSubject.length}):`, shelfBookDistributionByFirstSubject);
 
     // 5. Number of currently overdue books
     const overdueBooksCount = await Student.countDocuments({ returnDate: { $lt: now } });
+    console.log(`- overdueBooksCount: ${overdueBooksCount}`);
 
     // 6. Distribution of active borrows by duration
     const activeBorrowsByDuration = await Student.aggregate([
-      {
-        $group: {
-          _id: "$duration", // Group by the duration field
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } },
-      {
-        $project: {
-          duration: "$_id",
-          count: 1,
-          _id: 0
-        }
-      }
+      { $match: { duration: { $exists: true, $ne: null, $ne: "" } } },
+      { $project: { duration: { $toString: "$duration" } } },
+      { $group: { _id: "$duration", count: { $sum: 1 } } },
+      { $match: { _id: { $ne: "null", $ne: "undefined", $ne: "" } } },
+      { $sort: { count: -1, _id: 1 } },
+      { $project: { duration: "$_id", count: 1, _id: 0 } }
     ]);
+    console.log(`- activeBorrowsByDuration (${activeBorrowsByDuration.length}):`, activeBorrowsByDuration);
 
-    // Combine all statistics into a single response object
+    // 7. Distribution of Members by Age
+    const memberDistributionByAge = await Members.aggregate([
+      { $match: { age: { $exists: true, $ne: null, $gt: 0 } } },
+      { $project: { age: { $toInt: "$age" } } },
+      { $group: { _id: "$age", count: { $sum: 1 } } },
+      { $match: { _id: { $ne: null } } },
+      { $sort: { _id: 1 } },
+      { $project: { age: "$_id", count: 1, _id: 0 } }
+    ]);
+    console.log(`- memberDistributionByAge (${memberDistributionByAge.length}):`, memberDistributionByAge);
+
+    // 8. Distribution of Members by Grade
+    const memberDistributionByGrade = await Members.aggregate([
+      { $match: { grade: { $exists: true, $ne: null, $ne: "" } } },
+      { $project: { grade: { $toString: "$grade" } } },
+      { $group: { _id: "$grade", count: { $sum: 1 } } },
+      { $match: { _id: { $ne: "null", $ne: "undefined", $ne: "" } } },
+      { $sort: { _id: 1 } },
+      { $project: { grade: "$_id", count: 1, _id: 0 } }
+    ]);
+    console.log(`- memberDistributionByGrade (${memberDistributionByGrade.length}):`, memberDistributionByGrade);
+
+    // Assemble the final response
     const statistics = {
       totalStudentsWithBorrows,
       totalMembers,
       totalBooksOnShelf,
-      shelfBookDistributionBySubject,
+      shelfBookDistributionBySubjectTag,
+      shelfBookDistributionByFirstSubject,
       overdueBooksCount,
       activeBorrowsByDuration,
-      lastUpdated: now.toISOString() // To know when the stats were generated
+      memberDistributionByAge,
+      memberDistributionByGrade,
+      lastUpdated: now.toISOString()
     };
 
+    console.log("Successfully compiled statistics.");
     res.status(200).json(statistics);
-
   } catch (error) {
     console.error('Error fetching statistics:', error);
-    res.status(500).json({ message: 'Failed to retrieve statistics due to an internal server error.', error: error.message });
-  }
-});
-
-
-
-
-app.get('/pre-stats', async (req, res) => {
-  try {
-    // Fetch the total number of students
-    const studentCount = await Student.countDocuments();
-
-    // Fetch the distribution of books by subject using aggregation
-    const bookDistribution = await Book.aggregate([
-      {
-        $group: {
-          _id: '$subject', // Group by subject
-          count: { $sum: 1 }, // Count books for each subject
-        },
-      },
-      {
-        $sort: { count: -1 }, // Sort by count in descending order
-      },
-      {
-        $project: {  // Project the fields to the desired format.  Important for consistent output.
-          subject: '$_id',
-          count: 1,
-          _id: 0
-        }
-      }
-    ]);
-
-    // Combine the results into a single object
-    const responseData = {
-      studentCount,
-      bookDistribution,
-    };
-
-    // Send the combined data as a JSON response
-    res.json(responseData);
-  } catch (error) {
-    // Handle errors during the database queries
-    console.error('Error fetching pre-stats:', error);
-    res.status(500).json({ error: 'Failed to retrieve pre-stats data' });
+    res.status(500).json({
+      message: 'Failed to retrieve statistics due to an internal server error.',
+      error: error.message
+    });
   }
 });
 

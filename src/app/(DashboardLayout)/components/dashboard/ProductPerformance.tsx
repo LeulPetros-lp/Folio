@@ -33,7 +33,7 @@ interface Student {
   isGood: boolean;
   book: any
   returnDate: string;
-  coverImageUrl: string
+  coverImageUrl: string // This might be in student.book if book data is nested
 }
 
 const API_BASE_URL = "http://localhost:5123";
@@ -115,8 +115,9 @@ const ProductPerformance: React.FC = () => {
 
   const handleOpenModal = (student: Student) => {
     setSelectedStudent(student);
-
-    setNewReturnDate(student.returnDate ? new Date(student.returnDate).toISOString().split('T')[0] : "");
+    // Format the existing return date for the date input
+    const existingReturnDate = student.returnDate ? new Date(student.returnDate).toISOString().split('T')[0] : "";
+    setNewReturnDate(existingReturnDate); // Set initial value to current return date
     setModalError(null);
     setOpenModal(true);
   };
@@ -139,14 +140,14 @@ const ProductPerformance: React.FC = () => {
         prevStudents.filter((s) => s.id !== selectedStudent.id)
       );
       handleShowSnackbar("Book returned successfully!", "success");
-      router.refresh()
+      router.refresh() // Refresh the page to update dashboard stats if needed
       handleCloseModal();
 
     } catch (err: any) {
       console.error("Error returning book:", err);
       const errorMessage = err.response?.data?.message || "Failed to return book.";
-      setModalError(errorMessage);
-      handleShowSnackbar(errorMessage, "error");
+      setModalError(errorMessage); // Show error in modal
+      handleShowSnackbar(errorMessage, "error"); // Show error in snackbar
     } finally {
       setModalLoading(false);
     }
@@ -156,34 +157,55 @@ const ProductPerformance: React.FC = () => {
 
   const handleExtendReturnDate = async () => {
     if (!selectedStudent) return;
+
+    // --- Validation 1: Check if new date is empty ---
     if (!newReturnDate) {
       const dateEmptyMsg = "New return date cannot be empty.";
       setModalError(dateEmptyMsg);
       handleShowSnackbar(dateEmptyMsg, "warning");
-      return;
+      return; // Stop execution
     }
+
+    // --- Validation 2: Check if new date is before the current date ---
+    const currentReturnDateObj = new Date(selectedStudent.returnDate);
+    const newReturnDateObj = new Date(newReturnDate);
+
+    // Set times to midnight for date-only comparison
+    currentReturnDateObj.setHours(0, 0, 0, 0);
+    newReturnDateObj.setHours(0, 0, 0, 0);
+
+    if (newReturnDateObj < currentReturnDateObj) {
+        const validationMsg = "Extended date cannot be before the current return date.";
+        setModalError(validationMsg);
+        handleShowSnackbar(validationMsg, "warning");
+        return; // Stop execution
+    }
+
+    // If validations pass, proceed with API call
     setModalLoading(true);
-    setModalError(null);
+    setModalError(null); // Clear previous modal error
+
     try {
       await axios.put(
         `${API_BASE_URL}/extend-return-date/${selectedStudent.id}`,
         { newReturnDate }
       );
+      // Update the student in the local state
       setStudents((prevStudents) =>
         prevStudents.map((s) =>
           s.id === selectedStudent.id
-            ? { ...s, returnDate: newReturnDate, isGood: new Date(newReturnDate) >= new Date() }
+            ? { ...s, returnDate: newReturnDate, isGood: new Date(newReturnDate) >= new Date() } // Update isGood based on the new date vs today
             : s
         )
       );
       handleShowSnackbar("Return date extended successfully!", "success");
-      handleCloseModal();
+      handleCloseModal(); // Close modal on success
 
     } catch (err: any) {
       console.error("Error extending return date:", err);
       const errorMessage = err.response?.data?.message || "Failed to extend return date.";
-      setModalError(errorMessage);
-      handleShowSnackbar(errorMessage, "error");
+      setModalError(errorMessage); // Show error in modal
+      handleShowSnackbar(errorMessage, "error"); // Show error in snackbar
     } finally {
       setModalLoading(false);
     }
@@ -306,31 +328,7 @@ const ProductPerformance: React.FC = () => {
           {selectedStudent && (
             <Dialog open={openModal} onClose={handleCloseModal} fullWidth maxWidth="sm">
               <DialogTitle>Manage Book for: {selectedStudent.name}</DialogTitle>
-
-              {/* <div style={{ textAlign: 'center'}}>
-                <Image
-                  src={selectedStudent.book.coverImageUrl}
-                  // The width and height props are still important for Next.js's image optimization.
-                  // They help Next.js determine the intrinsic size or aspect ratio to optimize for.
-                  // The 'objectFit: cover' style will then ensure the image covers the dimensions
-                  // specified in the style prop (5rem x 7rem), cropping if necessary.
-                  width={200}
-                  height={200} // If your source images are often square, object-cover will handle the aspect difference.
-                  // If they match the 5:7 aspect ratio (e.g., width={200} height={280}), less/no cropping will occur.
-                  alt="Book Image"
-                  style={{
-                    width: '12rem',        // from w-20
-                    height: '15rem',       // from h-28
-                    marginBottom: '0.5rem', // from mb-2
-                    borderRadius: '0.5rem', // from rounded-lg
-                    objectFit: 'cover',     // from object-cover
-                  }}
-                // className prop is removed as styles are now inline
-                />
-              </div> */}
               <DialogContent>
-
-
                 <DialogContentText sx={{ mb: 1 }}>
                   Book: <strong>{selectedStudent.book ? selectedStudent.book.title : "No Book"}</strong>
                 </DialogContentText>
@@ -388,4 +386,3 @@ const ProductPerformance: React.FC = () => {
 };
 
 export default ProductPerformance;
-
