@@ -4,11 +4,12 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https', // Change to https - images are likely served over HTTPS
+        protocol: 'http', // Change to https - images are likely served over HTTPS
         hostname: 'books.google.com',
         port: '',
         pathname: '/books/content/**',
       },
+      
       {
         protocol: 'https', // Add this entry for Open Library covers
         hostname: 'covers.openlibrary.org',

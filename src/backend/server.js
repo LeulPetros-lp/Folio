@@ -1,5 +1,8 @@
 // @ts-nocheck
 
+// dotenv
+require('dotenv').config({ path: '../../.env'})
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -13,8 +16,9 @@ const PORT = process.env.PORT || 5123;
 
 app.use(cors());
 app.use(express.json()); // Middleware to parse JSON bodies
+const MONGODB_URI = process.env.MONGODB_URI
 
-mongoose.connect("mongodb+srv://leulpete14:wMJPgiS5RLeN0xI4@libby.wn5g9qy.mongodb.net/?retryWrites=true&w=majority&appName=LIBBY").then(() => {
+mongoose.connect(MONGODB_URI).then(() => {
   console.log("Connected to DB");
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
