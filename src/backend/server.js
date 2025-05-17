@@ -484,6 +484,133 @@ app.get('/get-members', async(req,res) => {
   }
 })
 
+app.put('/edit-member/:studId', async (req, res) => {
+  const studId = req.params.studId; // Get the member's stud_id from the URL
+  const updates = req.body; // Get the update data from the request body
+
+  console.log(`BACKEND: Received PUT request for /edit-member/${studId} with updates:`, JSON.stringify(updates, null, 2));
+
+  // Basic validation: Ensure the member ID is provided in the URL
+  if (!studId) {
+    console.log('BACKEND: studId missing in request parameters.');
+    return res.status(400).json({ message: 'Member Student ID (studId) is required in the URL.' });
+  }
+
+  // Basic validation: Ensure there are fields to update in the request body
+  if (!updates || Object.keys(updates).length === 0) {
+    console.log('BACKEND: No update data provided in request body.');
+    return res.status(400).json({ message: 'No update data provided in the request body.' });
+  }
+
+  // Prepare update data, filtering out potentially forbidden fields (like stud_id itself)
+  // and applying necessary transformations (trimming strings, converting numbers).
+  const updateData = {};
+  // Define which fields are allowed to be updated via this endpoint
+  const allowedUpdates = ['name', 'parentPhone', 'age', 'grade', 'section', 'score'];
+
+  for (const field of allowedUpdates) {
+    // Check if the field exists in the incoming updates body
+    if (updates.hasOwnProperty(field) && updates[field] !== undefined && updates[field] !== null) {
+      let value = updates[field];
+
+      // Apply type checks and transformations based on the field
+      if (field === 'name' || field === 'section') {
+        if (typeof value !== 'string') {
+             console.warn(`BACKEND: Coercing non-string value for ${field} to string:`, value);
+             value = String(value); // Coerce to string
+        }
+        updateData[field] = value.trim();
+         // Optional: Add check if trimmed string is empty if not allowed
+         // if (updateData[field] === '' && (field === 'name' || field === 'section')) {
+         //      return res.status(400).json({ message: `${field} cannot be empty.` });
+         // }
+      } else if (field === 'age' || field === 'parentPhone' || field === 'score') {
+         const numValue = Number(value);
+         if (isNaN(numValue)) {
+           console.warn(`BACKEND: Received non-numeric value for ${field}. Skipping update for this field. Value:`, value);
+           // Optionally, return an error if a number is strictly required
+           // return res.status(400).json({ message: `${field} must be a valid number.` });
+           continue; // Skip adding this field if it's not a valid number
+         }
+         updateData[field] = numValue;
+
+         // Special handling for age - maybe ensure it's positive
+         if (field === 'age' && numValue <= 0) {
+              return res.status(400).json({ message: 'Age must be a positive number.' });
+         }
+
+      } else if (field === 'grade') {
+           // Special handling for grade as it affects level
+           // Allow grade to be potentially non-numeric if your system handles it, but determine level numerically
+           updateData[field] = value; // Store the grade value as received (string or number)
+           updateData.level = determineLevel(value); // Recalculate level based on the new grade value
+           if(updateData.level === 'Undefined' && Number(value) > 0) { // Check if grade is numeric but outside 1-12
+               console.warn(`BACKEND: Grade ${value} is numeric but outside expected range (1-12). Setting level to 'Undefined'.`);
+               // Optionally, return a warning or error here
+           }
+      } else {
+        // For any other allowed fields (if added later) without special handling, add them directly
+        updateData[field] = value;
+      }
+    }
+  }
+
+    // After processing, check again if there's anything valid to update
+    if (Object.keys(updateData).length === 0) {
+         console.log('BACKEND: No valid fields provided for update after processing.');
+         return res.status(400).json({ message: 'No valid fields provided for update after processing.' });
+    }
+
+
+  try {
+    // Find the member by stud_id and update the allowed fields
+    // { new: true } returns the updated document after the update is applied
+    // { runValidators: true } ensures Mongoose schema validators run on the update operation
+    const updatedMember = await Members.findOneAndUpdate(
+      { stud_id: studId }, // Filter: Find the member with this stud_id
+      updateData,         // Update: Apply the changes from the updateData object
+      { new: true, runValidators: true } // Options
+    );
+
+    console.log(`BACKEND: Attempted to update member with studId ${studId}. Result:`, updatedMember ? 'Found and updated' : 'Not Found');
+
+    // If no member was found with the given stud_id
+    if (!updatedMember) {
+      console.log(`BACKEND: Member with studId ${studId} not found.`);
+      return res.status(404).json({ message: 'Member not found.' });
+    }
+
+    // Respond with a success message and the updated member data
+    console.log(`BACKEND: Member with studId ${studId} updated successfully.`);
+    res.status(200).json({ message: 'Member updated successfully', member: updatedMember });
+
+  } catch (err) {
+    console.error(`BACKEND: Error updating member with studId ${studId}:`, err); // Log the full error object
+
+    // Handle specific Mongoose validation errors (e.g., a field failed a 'required' or custom validator)
+    if (err.name === 'ValidationError') {
+      console.error('Mongoose Validation Errors (edit-member):', JSON.stringify(err.errors, null, 2));
+      return res.status(400).json({ message: "Validation Error from Schema. Please check data format.", errors: err.errors });
+    }
+
+    // Handle MongoDB unique constraint violation (if any field *other than* stud_id has a unique index and the update violates it)
+    if (err.code === 11000) {
+        console.error('MongoDB Duplicate Key Error (edit-member):', err.keyValue);
+        // Identify which field caused the duplicate error
+        const duplicateField = Object.keys(err.keyValue)[0];
+        return res.status(409).json({ // 409 Conflict
+            message: `This update would create a duplicate value for a unique field: ${duplicateField}.`,
+            errorDetails: err.keyValue
+        });
+    }
+
+    // Handle any other potential errors during the update process
+    res.status(500).json({ message: 'Server error occurred while attempting to update member.' });
+  }
+});
+
+
+
 // Revoke membership by deleting a member
 app.delete('/revoke-member/:id', async (req, res) => {
   const memberId = req.params.id; // Correctly uses req.params.id

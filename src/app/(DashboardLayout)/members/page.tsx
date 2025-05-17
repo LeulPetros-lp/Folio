@@ -20,14 +20,18 @@ import {
   Snackbar,
   AlertColor,
   Tooltip,
-  TextField, // Added TextField
+  TextField,
+  Divider,
+  styled,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline'; // Keep for card icon if desired
+import HighlightOffIcon from '@mui/icons-material/HighlightOff'; // Keep for active borrow indicator icon
 
 // Interface for Members from /get-members
 interface Member {
-  id: string | number;    // For React key
-  stud_id: string | number;   // Database ID
+  id: string | number;
+  stud_id: string | number;
   name: string;
   parentPhone: string;
   age: number | string;
@@ -45,19 +49,28 @@ interface StudentBorrowRecord {
   returnDate: string;
 }
 
+// Styled Box for consistent info display in modal - Adjusted styling
+const InfoBox = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  marginBottom: theme.spacing(1.5),
+  // Removed the '& svg' styling as icons are removed
+}));
+
 const modalStyle = {
   position: 'absolute' as 'absolute',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
-  width: '90%',
-  maxWidth: 500,
+  width: '95%',
+  maxWidth: 550,
   bgcolor: 'background.paper',
   border: '1px solid #ddd',
   borderRadius: 2,
   boxShadow: 24,
-  p: { xs: 2, sm: 3, md: 4 },
+  p: { xs: 3, sm: 4, md: 5 },
   fontFamily: 'Poppins, sans-serif',
+  outline: 'none',
 };
 
 function MembersPreviewPage() {
@@ -67,7 +80,7 @@ function MembersPreviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>(''); // New state for search
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
@@ -87,7 +100,6 @@ function MembersPreviewPage() {
 
         const membersData = membersResponse.data.data || membersResponse.data.members || membersResponse.data || [];
         if (Array.isArray(membersData)) {
-          // Ensure 'id' for React key is present, using stud_id as fallback if necessary
           const processedMembers = membersData.map(m => ({ ...m, id: m.id || m.stud_id }));
           setMembers(processedMembers);
         }
@@ -96,7 +108,6 @@ function MembersPreviewPage() {
         const studentBorrowsData = studentBorrowsResponse.data.data || studentBorrowsResponse.data.students || studentBorrowsResponse.data || [];
         if (Array.isArray(studentBorrowsData)) {
           setStudentBorrowRecords(studentBorrowsData);
-          // console.log("Fetched Student Borrow Records (first 3):", JSON.stringify(studentBorrowsData.slice(0,3), null, 2));
         } else {
           console.error("Fetched student borrow data not an array:", studentBorrowsData);
           setStudentBorrowRecords([]);
@@ -126,28 +137,20 @@ function MembersPreviewPage() {
   };
 
   const canMemberBeRevoked = (member_Id_to_check: string | number): boolean => {
-    // console.log(`[canMemberBeRevoked] Checking for memberId: ${member_Id_to_check}`);
     if (loading) {
-      // console.log("[canMemberBeRevoked] Initial data still loading. Defaulting to disable revoke.");
       return false;
     }
     if (!studentBorrowRecords || studentBorrowRecords.length === 0) {
-      // console.log("[canMemberBeRevoked] No student borrow records available. Member IS revokable.");
       return true;
     }
     const hasLinkedBorrowRecord = studentBorrowRecords.some(
       (record) => String(record.memberId) === String(member_Id_to_check)
     );
 
-    if (hasLinkedBorrowRecord) {
-      // console.log(`[canMemberBeRevoked] Active borrow record FOUND for memberId: ${member_Id_to_check}. Member is NOT revokable.`);
-      return false;
-    } else {
-      // console.log(`[canMemberBeRevoked] No active borrow record found for memberId: ${member_Id_to_check}. Member IS revokable.`);
-      return true;
-    }
+    return !hasLinkedBorrowRecord;
   };
 
+  // The handleRevokeMember function remains unchanged as it's core logic
   const handleRevokeMember = async () => {
     if (!selectedMember || !selectedMember.stud_id) {
       setSnackbarMessage("No member selected.");
@@ -218,70 +221,73 @@ function MembersPreviewPage() {
   );
 
   // Main loader for the whole page
-  if (loading && members.length === 0 && studentBorrowRecords.length === 0) { // Adjusted condition to only show full page loader on initial load
+  if (loading && members.length === 0 && studentBorrowRecords.length === 0) {
     return (
       <Container sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', fontFamily: 'Poppins, sans-serif' }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading page data...</Typography>
+        <CircularProgress size={60} thickness={4} color="primary" />
+        <Typography variant="h6" sx={{ mt: 3, color: 'text.secondary' }}>Loading members data...</Typography>
       </Container>
     );
   }
 
   // Main error display for the whole page
-  if (error && !loading && members.length === 0) { // Adjusted condition
+  if (error && !loading && members.length === 0) {
     return (
       <Container sx={{ py: 5, fontFamily: 'Poppins, sans-serif' }}>
-        <Alert severity="error" variant="filled">{error}</Alert>
+        <Alert severity="error" variant="outlined" sx={{ borderColor: 'error.main', color: 'error.dark' }}>
+          <Typography variant="body1">{error}</Typography>
+        </Alert>
       </Container>
     );
   }
 
   return (
-    <Box sx={{ fontFamily: 'Poppins, sans-serif', py: 3, minHeight: '100vh' }}>
+    <Box sx={{ fontFamily: 'Poppins, sans-serif', py: 4, minHeight: '100vh', backgroundColor: 'white' }}>
       <Container maxWidth="lg">
-        <Typography variant="h4" component="h1" gutterBottom sx={{ textAlign: 'center', color: '#2c3e50', mb: 2, fontWeight: 600 }}>
-          Members Dashboard (*{members?.length})
+        <Typography variant="h4" component="h1" gutterBottom sx={{ textAlign: 'center', color: '#2c3e50', mb: 4, fontWeight: 700 }}>
+          Library Members (*{members?.length || 0})
         </Typography>
 
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-around', gap:3 }}>
+        <Box sx={{ mb: 4, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', gap: 3, alignItems: { sm: 'center' } }}>
           <TextField
-            label="Search Members (by Name, ID, Grade, Section)"
+            label="Search Members"
             variant="outlined"
             fullWidth
             value={searchTerm}
             onChange={handleSearchChange}
-            sx={{ maxWidth: '800px' }} // Adjusted width
-
+            placeholder="Registered Student Name"
+            sx={{ maxWidth: { sm: '10rm' }, '.MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: 'background.paper' } }}
           />
 
           <Button
-            sx={{ mb: 4, display: 'block', mx: 'auto', px: 4, py: 1.5 }} // Slightly larger button
             variant="contained"
             color="primary"
+            size="large"
             onClick={() => router.push("/members/registration")}
+            sx={{ px: 4, py: 1.5, borderRadius: '8px', whiteSpace: 'nowrap' }}
           >
             Register New Member
           </Button>
         </Box>
 
-
-
-        {/* Conditional rendering for loading/error specific to member list if needed, else rely on main loader */}
-        {loading && members.length > 0 && ( // Show a subtle loader if members are already partially loaded but a refresh is happening.
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}><CircularProgress size={24} /><Typography sx={{ ml: 1 }}>Refreshing data...</Typography></Box>
+        {loading && members.length > 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 2, color: 'text.secondary' }}>
+            <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+            <Typography variant="body2">Refreshing data...</Typography>
+          </Box>
         )}
 
-
-        {!loading && !error && members.length === 0 && ( // No members registered at all
-          <Alert severity="info" sx={{ mt: 4, py: 3, textAlign: 'center' }} variant="outlined">
-            No members are currently registered in the system. <br />
-            Click the "Register New Member" button above to add the first member.
+        {!loading && !error && members.length === 0 && (
+          <Alert severity="info" sx={{ mt: 4, py: 3, textAlign: 'center', border: '1px dashed #b3e5fc', color: '#01579b' }} variant="outlined">
+            <Typography variant="h6" gutterBottom>No Members Registered</Typography>
+            <Typography variant="body1">It looks like no members have been added to the system yet.</Typography>
+            <Typography variant="body1" sx={{ mt: 1 }}>Click the "Register New Member" button above to get started.</Typography>
           </Alert>
         )}
 
-        {!loading && !error && members.length > 0 && filteredMembers.length === 0 && ( // Members exist, but none match search
-          <Alert severity="info" sx={{ mt: 4, py: 2 }} variant="outlined">
-            No members found matching "{searchTerm}". Try a different search term.
+        {!loading && !error && members.length > 0 && filteredMembers.length === 0 && (
+          <Alert severity="warning" sx={{ mt: 4, py: 2, border: '1px dashed #ffb74d', color: '#e65100' }} variant="outlined">
+            <Typography variant="body1">No members found matching your search: "<strong>{searchTerm}</strong>".</Typography>
           </Alert>
         )}
 
@@ -289,36 +295,33 @@ function MembersPreviewPage() {
           <Stack spacing={2.5} sx={{ mt: 2 }}>
             {filteredMembers.map((member) => (
               <Card
-                key={member.id || member.stud_id} // Ensure key is unique
+                key={member.id || member.stud_id}
                 sx={{
                   transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                  '&:hover': { transform: 'translateY(-4px)', boxShadow: (theme) => theme.shadows[8] },
-                  borderRadius: '8px' // Slightly more rounded cards
+                  '&:hover': { transform: 'translateY(-5px)', boxShadow: (theme) => theme.shadows[10] },
+                  borderRadius: '10px',
+                  border: '1px solid #e0e0e0',
+                  bgcolor: 'background.paper',
                 }}
               >
-                <CardActionArea onClick={() => handleCardClick(member)} component="div">
-                  <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: 'flex-start', sm: { alignItems: 'center' }, gap: 2, p: { xs: 2, md: 3 } }}>
+                <CardActionArea onClick={() => handleCardClick(member)} component="div" sx={{ p: { xs: 2, md: 3 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                    {/* Keep PersonOutlineIcon on the card as a general indicator */}
+                    <PersonOutlineIcon sx={{ fontSize: 40, color: 'primary.main', flexShrink: 0 }} />
                     <Box flexGrow={1}>
-                      <Typography variant="h6" component="h2" sx={{ fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
+                      <Typography variant="h6" component="h2" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
                         {member.name}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        ID: {member.stud_id} | Age: {member.age} | Grade: {member.grade} | Section: {member.section}
+                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                        ID: <strong>{member.stud_id}</strong> | Age: {member.age} | Grade: {member.grade} | Section: {member.section}
                       </Typography>
-
-                      {/* <Typography>
-                        10
-                      </Typography> */}
                     </Box>
-                    {/* Optionally, show an indicator if member cannot be revoked */}
                     {!canMemberBeRevoked(member.stud_id) && (
-                      <Tooltip title="This member has an active borrow record.">
-                        <Typography variant="caption" sx={{ color: 'orange.main', alignSelf: 'center', ml: { sm: 'auto' } }}>
-                          Active Borrow
-                        </Typography>
+                      <Tooltip title="This member has an active borrow record and cannot be revoked yet.">
+                        <HighlightOffIcon color="warning" sx={{ fontSize: 30, flexShrink: 0 }} />
                       </Tooltip>
                     )}
-                  </CardContent>
+                  </Box>
                 </CardActionArea>
               </Card>
             ))}
@@ -330,44 +333,64 @@ function MembersPreviewPage() {
             open={isModalOpen}
             onClose={handleCloseModal}
             aria-labelledby="member-details-modal-title"
+            closeAfterTransition
           >
             <Box sx={modalStyle}>
               <IconButton
                 aria-label="close"
                 onClick={handleCloseModal}
-                sx={{ position: 'absolute', right: 12, top: 12, color: (theme) => theme.palette.grey[600] }}
+                sx={{ position: 'absolute', right: 16, top: 16, color: (theme) => theme.palette.grey[600] }}
               >
                 <CloseIcon />
               </IconButton>
-              <Typography id="member-details-modal-title" variant="h5" component="h2" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold', mb: 3 }}>
-                {selectedMember.name}'s Details
+              <Typography id="member-details-modal-title" variant="h5" component="h2" gutterBottom sx={{ color: 'primary.dark', fontWeight: 'bold', mb: 2 }}>
+                Member Details
               </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Database ID:</Box> {selectedMember.stud_id}</Typography>
-                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Parent's Phone:</Box> {selectedMember.parentPhone}</Typography>
-                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Age:</Box> {selectedMember.age}</Typography>
-                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Grade:</Box> {selectedMember.grade}</Typography>
-                <Typography variant="body1" gutterBottom><Box component="span" sx={{ fontWeight: 'bold' }}>Section:</Box> {selectedMember.section}</Typography>
+              <Typography variant="h6" sx={{ mb: 3, color: 'text.primary' }}>
+                {selectedMember.name}
+              </Typography>
+              <Divider sx={{ mb: 3 }} />
+
+              <Box>
+                {/* Removed Icons from InfoBox */}
+                <InfoBox>
+                  <Typography variant="body1"><Box component="span" sx={{ fontWeight: 'bold' }}>Database ID:</Box> {selectedMember.stud_id}</Typography>
+                </InfoBox>
+                <InfoBox>
+                  <Typography variant="body1"><Box component="span" sx={{ fontWeight: 'bold' }}>Parent's Phone:</Box> {selectedMember.parentPhone}</Typography>
+                </InfoBox>
+                <InfoBox>
+                  <Typography variant="body1"><Box component="span" sx={{ fontWeight: 'bold' }}>Age:</Box> {selectedMember.age}</Typography>
+                </InfoBox>
+                <InfoBox>
+                  <Typography variant="body1"><Box component="span" sx={{ fontWeight: 'bold' }}>Grade:</Box> {selectedMember.grade}</Typography>
+                </InfoBox>
+                <InfoBox>
+                  <Typography variant="body1"><Box component="span" sx={{ fontWeight: 'bold' }}>Section:</Box> {selectedMember.section}</Typography>
+                </InfoBox>
               </Box>
+
               <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
-                <Tooltip title={!canMemberBeRevoked(selectedMember.stud_id) ? "Member has an active borrow record and cannot be revoked." : "Revoke this member"}>
+                <Tooltip title={!canMemberBeRevoked(selectedMember.stud_id) ? "This member has an active borrow record and cannot be revoked yet." : "Permanently remove this member from the system."}>
                   <span>
                     <Button
                       variant="contained"
                       onClick={handleRevokeMember}
                       disabled={!canMemberBeRevoked(selectedMember.stud_id)}
                       sx={{
-                        backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.main',
+                        backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.500' : 'error.main',
                         '&:hover': {
-                          backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.400' : 'error.dark'
+                          backgroundColor: !canMemberBeRevoked(selectedMember.stud_id) ? 'grey.500' : 'error.dark'
                         },
+                        boxShadow: !canMemberBeRevoked(selectedMember.stud_id) ? 'none' : undefined,
+                        cursor: !canMemberBeRevoked(selectedMember.stud_id) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       Revoke Member
                     </Button>
                   </span>
                 </Tooltip>
-                <Button variant="outlined" color="secondary" onClick={handleCloseModal}>
+                <Button variant="outlined" color="secondary" onClick={handleCloseModal} sx={{ borderRadius: '8px' }}>
                   Close
                 </Button>
               </Stack>
@@ -380,7 +403,7 @@ function MembersPreviewPage() {
           autoHideDuration={6000}
           onClose={handleSnackbarClose}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-          key={snackbarMessage + snackbarSeverity} // Key helps re-render Snackbar if message/severity changes for same open state
+          key={snackbarMessage + snackbarSeverity}
         >
           <Alert
             onClose={handleSnackbarClose}
