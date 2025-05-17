@@ -758,7 +758,7 @@ function StatisticsPage() {
            disabled={loading || error !== null || isGeneratingPdf || !statistics} // Disable button when loading, error, generating PDF, or no data
            startIcon={isGeneratingPdf ? <CircularProgress size={20} color="inherit" /> : null}
          >
-           {isGeneratingPdf ? 'Generating PDF...' : 'Download Library Report PDF'}
+           {isGeneratingPdf ? 'Generatinsg PDF...' : 'Download Library Report PDF'}
          </Button>
       </Box>
 
