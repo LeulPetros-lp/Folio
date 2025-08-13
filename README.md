@@ -1,4 +1,4 @@
-# Folio Statistics & AI Library Management System 📚
+# Folio Statistics & AI Library Management System 
 
 ![](asset_1.jpg)
 
