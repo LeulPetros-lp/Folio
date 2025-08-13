@@ -16,4 +16,4 @@ Folio is an open-source library management system that leverages the power of **
 * **Bug Fixes**
   
 
-**UNDER CONSTRUCTION** 🚧
+**Work In Progress** 🚧
