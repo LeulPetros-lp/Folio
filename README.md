@@ -8,8 +8,8 @@ Folio is an open-source library management system that leverages the power of **
 
 ## Technologies
 
-* **TypeScript** (86.4%)
-* **JavaScript** (13.6%)
+* **NextJS** (86.4%)
+* **Express JS + MongoDB** (13.6%)
 
 ## Status
 * **Backend migration to "go"**
