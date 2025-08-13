@@ -1,6 +1,6 @@
-# Folio: Statistics & AI Library Management System 📚
+# Folio Statistics & AI Library Management System 📚
 
-![A screenshot of the project's main dashboard](asset_1.jpg)
+![](asset_1.jpg)
 
 ## Overview
 
